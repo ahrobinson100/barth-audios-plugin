@@ -1,5 +1,4 @@
 #pragma once
-#include <juce_audio_basics/juce_audio_basics.h>
 
 class DCBlocker
 {
@@ -22,7 +21,7 @@ public:
         float output = input - xPrev_ + coefficient_ * yPrev_;
         xPrev_ = input;
         yPrev_ = output;
-        JUCE_SNAP_TO_ZERO (yPrev_);
+        if (! (yPrev_ < -1.0e-8f || yPrev_ > 1.0e-8f)) yPrev_ = 0.0f;
         return output;
     }
 

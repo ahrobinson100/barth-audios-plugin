@@ -73,7 +73,7 @@ void StereoReverb::processSample (float inputL, float inputR, float& outputL, fl
         auto& line = lines_[static_cast<size_t> (i)];
         delayed[static_cast<size_t> (i)] = line.dampState + damping_ * (delayed[static_cast<size_t> (i)] - line.dampState);
         line.dampState = delayed[static_cast<size_t> (i)];
-        JUCE_SNAP_TO_ZERO (line.dampState);
+        if (! (line.dampState < -1.0e-8f || line.dampState > 1.0e-8f)) line.dampState = 0.0f;
     }
 
     // Hadamard mixing matrix (4x4, normalized)
