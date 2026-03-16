@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <atomic>
-#include <cstdlib>
+#include <cstdint>
 
 class StepSequencer
 {
@@ -46,4 +46,16 @@ private:
     bool hostSync_ = false;
     float division_ = 0.25f; // 1/4 note
     double lastBeatPos_ = -1.0;
+
+    // Lock-free PRNG (xorshift32) — safe to call on audio thread
+    uint32_t rngState_ = 12345;
+    uint32_t xorshift32()
+    {
+        uint32_t x = rngState_;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        rngState_ = x;
+        return x;
+    }
 };

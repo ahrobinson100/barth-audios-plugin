@@ -28,13 +28,17 @@ void FrequencyShifter::reset()
 {
     for (auto& stage : hilbertI_) stage.reset();
     for (auto& stage : hilbertQ_) stage.reset();
-    oscPhase_ = 0.0;
+    oscCos_ = 1.0f;
+    oscSin_ = 0.0f;
+    oscCounter_ = 0;
 }
 
 void FrequencyShifter::setShiftHz (float hz)
 {
     shiftHz_ = hz;
-    oscPhaseInc_ = 2.0 * 3.14159265358979323846 * static_cast<double> (hz) / sampleRate_;
+    double phaseInc = 2.0 * 3.14159265358979323846 * static_cast<double> (hz) / sampleRate_;
+    oscCosInc_ = static_cast<float> (std::cos (phaseInc));
+    oscSinInc_ = static_cast<float> (std::sin (phaseInc));
 }
 
 float FrequencyShifter::processSample (float input)
@@ -48,17 +52,27 @@ float FrequencyShifter::processSample (float input)
     for (auto& stage : hilbertQ_)
         quadPhase = stage.process (quadPhase);
 
-    // Modulate with complex oscillator for single-sideband shift
-    float cosOsc = static_cast<float> (std::cos (oscPhase_));
-    float sinOsc = static_cast<float> (std::sin (oscPhase_));
-
     // Upper sideband: I*cos - Q*sin
-    float output = inPhase * cosOsc - quadPhase * sinOsc;
+    float output = inPhase * oscCos_ - quadPhase * oscSin_;
 
-    // Advance oscillator
-    oscPhase_ += oscPhaseInc_;
-    if (oscPhase_ > 6.283185307) oscPhase_ -= 6.283185307;
-    if (oscPhase_ < 0.0) oscPhase_ += 6.283185307;
+    // Advance quadrature oscillator via rotation
+    float newCos = oscCos_ * oscCosInc_ - oscSin_ * oscSinInc_;
+    float newSin = oscSin_ * oscCosInc_ + oscCos_ * oscSinInc_;
+    oscCos_ = newCos;
+    oscSin_ = newSin;
+
+    // Renormalize every 512 samples to prevent drift
+    if (++oscCounter_ >= 512)
+    {
+        oscCounter_ = 0;
+        float mag = oscCos_ * oscCos_ + oscSin_ * oscSin_;
+        if (mag > 0.0f)
+        {
+            float invMag = 1.0f / std::sqrt (mag);
+            oscCos_ *= invMag;
+            oscSin_ *= invMag;
+        }
+    }
 
     return output;
 }

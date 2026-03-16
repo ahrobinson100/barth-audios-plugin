@@ -15,6 +15,7 @@ public:
     void setSustain (float level);   // 0..1
     void setReleaseMs (float ms);
     void setInverted (bool inverted);
+    void updateCoefficients();
 
     void trigger();
     void release();
@@ -24,7 +25,6 @@ public:
     State getState() const { return state_; }
 
 private:
-    void updateCoefficients();
 
     double sampleRate_ = 48000.0;
 

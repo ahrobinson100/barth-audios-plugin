@@ -76,3 +76,80 @@ TEST_CASE ("StereoReverb: stereo output", "[reverb]")
     REQUIRE (sumL > 0.01f);
     REQUIRE (sumR > 0.01f);
 }
+
+TEST_CASE ("StereoReverb: silence in produces silence out", "[reverb][safety]")
+{
+    StereoReverb rev;
+    rev.prepare (48000.0);
+    rev.setDecayTime (2.0f);
+    rev.setRoomSize (0.5f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float outL, outR;
+        rev.processSample (0.0f, 0.0f, outL, outR);
+        maxOut = std::max (maxOut, std::max (std::abs (outL), std::abs (outR)));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("StereoReverb: damping reduces high frequencies", "[reverb]")
+{
+    // Compare bright vs damped tail
+    auto processImpulse = [] (float damping) {
+        StereoReverb rev;
+        rev.prepare (48000.0);
+        rev.setDecayTime (2.0f);
+        rev.setRoomSize (0.5f);
+        rev.setDamping (damping);
+
+        float outL, outR;
+        rev.processSample (1.0f, 1.0f, outL, outR); // Impulse
+
+        // Collect late tail (after 0.5s) into a buffer for RMS measurement
+        for (int i = 0; i < 24000; ++i)
+            rev.processSample (0.0f, 0.0f, outL, outR);
+
+        float rmsSum = 0.0f;
+        int count = 0;
+        for (int i = 0; i < 24000; ++i)
+        {
+            rev.processSample (0.0f, 0.0f, outL, outR);
+            rmsSum += outL * outL + outR * outR;
+            ++count;
+        }
+        return std::sqrt (rmsSum / static_cast<float> (count * 2));
+    };
+
+    float brightRms = processImpulse (0.0f);
+    float dampedRms = processImpulse (0.9f);
+
+    // Damped tail should be quieter (energy absorbed by damping)
+    REQUIRE (dampedRms < brightRms);
+}
+
+TEST_CASE ("StereoReverb: reset clears state", "[reverb]")
+{
+    StereoReverb rev;
+    rev.prepare (48000.0);
+    rev.setDecayTime (5.0f);
+    rev.setRoomSize (0.5f);
+
+    // Feed impulse
+    float outL, outR;
+    rev.processSample (1.0f, 1.0f, outL, outR);
+    for (int i = 0; i < 4800; ++i)
+        rev.processSample (0.0f, 0.0f, outL, outR);
+
+    rev.reset();
+
+    // After reset, should output silence
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        rev.processSample (0.0f, 0.0f, outL, outR);
+        maxOut = std::max (maxOut, std::max (std::abs (outL), std::abs (outR)));
+    }
+    REQUIRE (maxOut < 0.001f);
+}

@@ -87,3 +87,81 @@ TEST_CASE ("DelayLine: DC blocker prevents DC accumulation", "[delay][safety]")
 
     REQUIRE (std::abs (lastOut) < 0.1f);
 }
+
+TEST_CASE ("DelayLine: handles all buffer sizes", "[delay][compat]")
+{
+    for (int blockSize : { 1, 64, 512, 2048, 8192 })
+    {
+        DelayLine dl;
+        dl.prepare (48000.0, blockSize);
+        dl.setDelayMs (50.0f);
+        dl.setFeedback (0.5f);
+
+        for (int i = 0; i < blockSize * 10; ++i)
+        {
+            float in = std::sin (static_cast<float> (i) * 0.1f);
+            float out = dl.processSample (in);
+            REQUIRE_FALSE (std::isnan (out));
+            REQUIRE_FALSE (std::isinf (out));
+        }
+    }
+}
+
+TEST_CASE ("DelayLine: handles all sample rates", "[delay][compat]")
+{
+    for (double sr : { 44100.0, 48000.0, 96000.0, 192000.0 })
+    {
+        DelayLine dl;
+        dl.prepare (sr, 512);
+        dl.setDelayMs (10.0f);
+        dl.setFeedback (0.0f);
+
+        // Send impulse and verify it comes back at approximately the right time
+        dl.processSample (1.0f);
+        int delaySamples = static_cast<int> (10.0f * static_cast<float> (sr) / 1000.0f);
+        for (int i = 1; i < delaySamples - 1; ++i)
+            dl.processSample (0.0f);
+
+        float out = dl.processSample (0.0f);
+        REQUIRE (std::abs (out) > 0.3f);
+    }
+}
+
+TEST_CASE ("DelayLine: silence in produces silence out", "[delay][safety]")
+{
+    DelayLine dl;
+    dl.prepare (48000.0, 512);
+    dl.setDelayMs (100.0f);
+    dl.setFeedback (0.5f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = dl.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("DelayLine: reset clears state", "[delay]")
+{
+    DelayLine dl;
+    dl.prepare (48000.0, 512);
+    dl.setDelayMs (10.0f);
+    dl.setFeedback (0.9f);
+
+    // Process signal to fill buffer
+    for (int i = 0; i < 4800; ++i)
+        dl.processSample (std::sin (static_cast<float> (i) * 0.1f));
+
+    dl.reset();
+
+    // After reset, silence in should give silence out
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        float out = dl.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.001f);
+}

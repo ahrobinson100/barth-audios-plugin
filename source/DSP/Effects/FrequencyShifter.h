@@ -28,6 +28,8 @@ private:
             float output = coeff * (input - state1) + state0;
             state0 = input;
             state1 = output;
+            if (! (state0 < -1.0e-8f || state0 > 1.0e-8f)) state0 = 0.0f;
+            if (! (state1 < -1.0e-8f || state1 > 1.0e-8f)) state1 = 0.0f;
             return output;
         }
 
@@ -43,6 +45,11 @@ private:
 
     float shiftHz_ = 0.0f;
     double sampleRate_ = 48000.0;
-    double oscPhase_ = 0.0;
-    double oscPhaseInc_ = 0.0;
+
+    // Quadrature oscillator (incremental rotation, no per-sample sin/cos)
+    float oscCos_ = 1.0f;
+    float oscSin_ = 0.0f;
+    float oscCosInc_ = 1.0f;
+    float oscSinInc_ = 0.0f;
+    int oscCounter_ = 0;  // renormalize periodically
 };

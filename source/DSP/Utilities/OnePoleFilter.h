@@ -29,6 +29,7 @@ public:
     float processLowPass (float input)
     {
         state_ += coefficient_ * (input - state_);
+        if (! (state_ < -1.0e-8f || state_ > 1.0e-8f)) state_ = 0.0f;
         return state_;
     }
 

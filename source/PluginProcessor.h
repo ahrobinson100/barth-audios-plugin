@@ -91,6 +91,15 @@ private:
     juce::SmoothedValue<float> feedbackSmoothed_;
     juce::SmoothedValue<float> mixSmoothed_;
 
+    // Effects parameter smoothing (per-block)
+    juce::SmoothedValue<float> fxFreqSmoothed_, fxDepthSmoothed_;
+    juce::SmoothedValue<float> distDriveSmoothed_, distBassBoostSmoothed_;
+    juce::SmoothedValue<float> lpfCutoffSmoothed_;
+    juce::SmoothedValue<float> reverbDecaySmoothed_, reverbSizeSmoothed_;
+
+    // Latency tracking
+    int lastReportedLatency_ = 0;
+
     // Atomic parameter pointers (set in constructor)
     std::atomic<float>* pitchLParam_ = nullptr;
     std::atomic<float>* pitchRParam_ = nullptr;

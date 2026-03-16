@@ -21,6 +21,7 @@ TEST_CASE ("ADSREnvelope: trigger starts attack", "[adsr]")
     adsr.setDecayMs (100.0f);
     adsr.setSustain (0.7f);
     adsr.setReleaseMs (200.0f);
+    adsr.updateCoefficients();
 
     adsr.trigger();
     REQUIRE (adsr.getState() == ADSREnvelope::State::Attack);
@@ -41,6 +42,7 @@ TEST_CASE ("ADSREnvelope: reaches sustain level", "[adsr]")
     adsr.setDecayMs (50.0f);
     adsr.setSustain (0.5f);
     adsr.setReleaseMs (100.0f);
+    adsr.updateCoefficients();
 
     adsr.trigger();
 
@@ -62,6 +64,7 @@ TEST_CASE ("ADSREnvelope: release goes to zero", "[adsr]")
     adsr.setDecayMs (10.0f);
     adsr.setSustain (0.7f);
     adsr.setReleaseMs (50.0f);
+    adsr.updateCoefficients();
 
     adsr.trigger();
     for (int i = 0; i < 24000; ++i) // Get to sustain
@@ -84,6 +87,7 @@ TEST_CASE ("ADSREnvelope: inverted mode", "[adsr]")
     adsr.setDecayMs (50.0f);
     adsr.setSustain (0.5f);
     adsr.setReleaseMs (100.0f);
+    adsr.updateCoefficients();
     adsr.setInverted (true);
 
     // Idle: inverted should output 1.0
@@ -107,6 +111,7 @@ TEST_CASE ("ADSREnvelope: no NaN/Inf", "[adsr][safety]")
     adsr.setDecayMs (1.0f);
     adsr.setSustain (0.0f);
     adsr.setReleaseMs (1.0f);
+    adsr.updateCoefficients();
 
     // Rapid trigger/release
     for (int i = 0; i < 48000; ++i)
@@ -119,4 +124,80 @@ TEST_CASE ("ADSREnvelope: no NaN/Inf", "[adsr][safety]")
         REQUIRE (val >= 0.0f);
         REQUIRE (val <= 1.1f); // Slight overshoot in attack is OK
     }
+}
+
+TEST_CASE ("ADSREnvelope: re-trigger during release", "[adsr]")
+{
+    ADSREnvelope adsr;
+    adsr.prepare (48000.0);
+    adsr.setAttackMs (10.0f);
+    adsr.setDecayMs (50.0f);
+    adsr.setSustain (0.5f);
+    adsr.setReleaseMs (500.0f);
+    adsr.updateCoefficients();
+
+    // Get to sustain
+    adsr.trigger();
+    for (int i = 0; i < 24000; ++i)
+        adsr.processSample();
+
+    // Start release
+    adsr.release();
+    for (int i = 0; i < 4800; ++i)
+        adsr.processSample();
+
+    float levelBeforeRetrigger = adsr.processSample();
+    REQUIRE (levelBeforeRetrigger < 0.5f); // Should be partway through release
+
+    // Re-trigger: should start new attack from current level
+    adsr.trigger();
+    REQUIRE (adsr.getState() == ADSREnvelope::State::Attack);
+
+    // After enough time, should reach peak again
+    for (int i = 0; i < 960; ++i) // ~20ms
+        adsr.processSample();
+
+    float val = adsr.processSample();
+    REQUIRE (val > 0.8f);
+}
+
+TEST_CASE ("ADSREnvelope: zero-length attack", "[adsr]")
+{
+    ADSREnvelope adsr;
+    adsr.prepare (48000.0);
+    adsr.setAttackMs (1.0f); // Minimum attack
+    adsr.setDecayMs (50.0f);
+    adsr.setSustain (0.5f);
+    adsr.setReleaseMs (100.0f);
+    adsr.updateCoefficients();
+
+    adsr.trigger();
+
+    // With very fast attack, should reach near peak quickly
+    for (int i = 0; i < 480; ++i) // 10ms
+        adsr.processSample();
+
+    float val = adsr.processSample();
+    REQUIRE (val > 0.8f);
+}
+
+TEST_CASE ("ADSREnvelope: reset clears state", "[adsr]")
+{
+    ADSREnvelope adsr;
+    adsr.prepare (48000.0);
+    adsr.setAttackMs (10.0f);
+    adsr.setDecayMs (50.0f);
+    adsr.setSustain (0.5f);
+    adsr.setReleaseMs (100.0f);
+    adsr.updateCoefficients();
+
+    adsr.trigger();
+    for (int i = 0; i < 4800; ++i)
+        adsr.processSample();
+
+    adsr.reset();
+
+    REQUIRE (adsr.getState() == ADSREnvelope::State::Idle);
+    float val = adsr.processSample();
+    REQUIRE (val == 0.0f);
 }

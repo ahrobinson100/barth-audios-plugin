@@ -43,6 +43,7 @@ float Distortion::processSample (float input)
 
     // Bass boost (parallel low shelf)
     bassState_ += bassCoeff_ * (sample - bassState_);
+    if (! (bassState_ < -1.0e-8f || bassState_ > 1.0e-8f)) bassState_ = 0.0f;
     sample += bassState_ * bassMix_;
 
     // Waveshaper: blend between clean and tanh saturation based on drive

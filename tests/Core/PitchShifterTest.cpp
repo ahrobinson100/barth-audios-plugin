@@ -124,3 +124,60 @@ TEST_CASE ("PitchShifter: semitone mode snaps correctly", "[pitch]")
     float expectedFreq = 440.0f * std::pow (2.0f, 7.0f / 12.0f); // ~659.3
     REQUIRE (outFreq == Catch::Approx (expectedFreq).margin (20.0f));
 }
+
+TEST_CASE ("PitchShifter: portamento smoothing", "[pitch]")
+{
+    PitchShifter ps;
+    ps.prepare (48000.0, 512);
+    ps.setPortamento (0.9f); // Slow portamento
+    ps.setPitchSemitones (0.0f);
+
+    // Settle at unity
+    auto input = TestHelpers::makeSine (440.0f, 48000.0, 4800);
+    const auto* in = input.getReadPointer (0);
+    for (int i = 0; i < 4800; ++i)
+        ps.processSample (in[i]);
+
+    // Jump to +12 semitones
+    ps.setPitchSemitones (12.0f);
+
+    // Process a few samples - with portamento, output shouldn't instantly be at 880Hz
+    juce::AudioBuffer<float> output (1, 4800);
+    auto* out = output.getWritePointer (0);
+    auto input2 = TestHelpers::makeSine (440.0f, 48000.0, 4800);
+    const auto* in2 = input2.getReadPointer (0);
+    for (int i = 0; i < 4800; ++i)
+        out[i] = ps.processSample (in2[i]);
+
+    // Early portion should not yet be at 880Hz
+    juce::AudioBuffer<float> early (1, 2400);
+    early.copyFrom (0, 0, output, 0, 0, 2400);
+    float earlyFreq = TestHelpers::measureFrequency (early, 48000.0);
+    // Should be somewhere between 440 and 880 (portamento in progress)
+    REQUIRE (earlyFreq < 880.0f);
+    REQUIRE_FALSE (TestHelpers::hasNanOrInf (output));
+}
+
+TEST_CASE ("PitchShifter: reset clears state", "[pitch]")
+{
+    PitchShifter ps;
+    ps.prepare (48000.0, 512);
+    ps.setPitchRatio (2.0f);
+
+    // Process some signal
+    auto input = TestHelpers::makeSine (440.0f, 48000.0, 4800);
+    const auto* in = input.getReadPointer (0);
+    for (int i = 0; i < 4800; ++i)
+        ps.processSample (in[i]);
+
+    ps.reset();
+
+    // After reset, processing silence should produce silence
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        float out = ps.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.01f);
+}

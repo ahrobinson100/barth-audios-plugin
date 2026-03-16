@@ -60,3 +60,40 @@ TEST_CASE ("FrequencyShifter: no NaN/Inf", "[freqshift][safety]")
         REQUIRE_FALSE (std::isinf (out));
     }
 }
+
+TEST_CASE ("FrequencyShifter: silence in produces silence out", "[freqshift][safety]")
+{
+    FrequencyShifter fs;
+    fs.prepare (48000.0);
+    fs.setShiftHz (100.0f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = fs.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.001f);
+}
+
+TEST_CASE ("FrequencyShifter: reset clears state", "[freqshift]")
+{
+    FrequencyShifter fs;
+    fs.prepare (48000.0);
+    fs.setShiftHz (100.0f);
+
+    // Process some signal
+    for (int i = 0; i < 4800; ++i)
+        fs.processSample (std::sin (static_cast<float> (i) * 0.1f));
+
+    fs.reset();
+
+    // After reset, silence in should produce silence out
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        float out = fs.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.001f);
+}

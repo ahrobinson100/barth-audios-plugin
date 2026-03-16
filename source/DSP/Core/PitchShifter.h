@@ -39,6 +39,7 @@ private:
     float currentRatio_ = 1.0f;
     float targetRatio_ = 1.0f;
     float portaCoeff_ = 1.0f; // 1.0 = instant
+    float lastSemitones_ = 0.0f; // cache to skip exp2f when unchanged
 
     float grainSizeSamples_ = 1920.0f; // 40ms at 48kHz
     double sampleRate_ = 48000.0;

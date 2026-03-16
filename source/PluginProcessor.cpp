@@ -268,10 +268,20 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     feedbackSmoothed_.reset (sampleRate, 0.01);
     mixSmoothed_.reset (sampleRate, 0.01);
 
+    // Effects smoothing (per-block rate: longer ramp, ~50ms)
+    fxFreqSmoothed_.reset (sampleRate, 0.05);
+    fxDepthSmoothed_.reset (sampleRate, 0.05);
+    distDriveSmoothed_.reset (sampleRate, 0.05);
+    distBassBoostSmoothed_.reset (sampleRate, 0.05);
+    lpfCutoffSmoothed_.reset (sampleRate, 0.05);
+    reverbDecaySmoothed_.reset (sampleRate, 0.05);
+    reverbSizeSmoothed_.reset (sampleRate, 0.05);
+
     // Report latency (half grain size)
     float grainMs = grainParam_->load();
     int latencySamples = static_cast<int> (grainMs * static_cast<float> (sampleRate) / 1000.0f * 0.5f);
     setLatencySamples (latencySamples);
+    lastReportedLatency_ = latencySamples;
 }
 
 void PluginProcessor::releaseResources()
@@ -280,12 +290,16 @@ void PluginProcessor::releaseResources()
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-        && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    const auto& outSet = layouts.getMainOutputChannelSet();
+    if (outSet != juce::AudioChannelSet::mono()
+        && outSet != juce::AudioChannelSet::stereo())
         return false;
 
 #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+    const auto& inSet = layouts.getMainInputChannelSet();
+    // Allow mono-in → stereo-out as well as matching layouts
+    if (inSet != outSet
+        && ! (inSet == juce::AudioChannelSet::mono() && outSet == juce::AudioChannelSet::stereo()))
         return false;
 #endif
 
@@ -302,6 +316,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+
+    // Mono-in → stereo-out: duplicate input channel
+    if (totalNumInputChannels == 1 && totalNumOutputChannels == 2)
+        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
 
     const int numSamples = buffer.getNumSamples();
 
@@ -370,22 +388,40 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     envFollower_.setThresholdDb (envThresholdParam_->load());
 
-    // Effects per-block setup
+    // Update effects smoothed targets
+    fxFreqSmoothed_.setTargetValue (fxFreq);
+    fxDepthSmoothed_.setTargetValue (fxDepth);
+    distDriveSmoothed_.setTargetValue (distDrive);
+    distBassBoostSmoothed_.setTargetValue (distBassBoost);
+    lpfCutoffSmoothed_.setTargetValue (lpfCutoff);
+    reverbDecaySmoothed_.setTargetValue (reverbDecay);
+    reverbSizeSmoothed_.setTargetValue (reverbSize);
+
+    // Read per-block smoothed values (one getNextValue per block is sufficient)
+    const float smoothedFxFreq = fxFreqSmoothed_.getNextValue();
+    const float smoothedFxDepth = fxDepthSmoothed_.getNextValue();
+    const float smoothedDistDrive = distDriveSmoothed_.getNextValue();
+    const float smoothedDistBassBoost = distBassBoostSmoothed_.getNextValue();
+    const float smoothedLpfCutoff = lpfCutoffSmoothed_.getNextValue();
+    const float smoothedReverbDecay = reverbDecaySmoothed_.getNextValue();
+    const float smoothedReverbSize = reverbSizeSmoothed_.getNextValue();
+
+    // Effects per-block setup (using smoothed values)
     switch (fxSelect)
     {
         case 1: // Freq Shift
-            freqShifterL_.setShiftHz (fxFreq);
-            freqShifterR_.setShiftHz (fxFreq);
+            freqShifterL_.setShiftHz (smoothedFxFreq);
+            freqShifterR_.setShiftHz (smoothedFxFreq);
             break;
         case 2: // Ring Mod
-            ringModL_.setFrequency (fxFreq);
-            ringModR_.setFrequency (fxFreq);
-            ringModL_.setDepth (fxDepth);
-            ringModR_.setDepth (fxDepth);
+            ringModL_.setFrequency (smoothedFxFreq);
+            ringModR_.setFrequency (smoothedFxFreq);
+            ringModL_.setDepth (smoothedFxDepth);
+            ringModR_.setDepth (smoothedFxDepth);
             break;
         case 3: // Phaser
-            phaseShifter_.setRate (fxFreq);
-            phaseShifter_.setDepth (fxDepth);
+            phaseShifter_.setRate (smoothedFxFreq);
+            phaseShifter_.setDepth (smoothedFxDepth);
             phaseShifter_.setStereoMode (static_cast<PhaseShifter::StereoMode> (fxStereoMode));
             break;
         default:
@@ -394,16 +430,16 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     if (reverbEnabled)
     {
-        reverb_.setDecayTime (reverbDecay);
-        reverb_.setRoomSize (reverbSize);
+        reverb_.setDecayTime (smoothedReverbDecay);
+        reverb_.setRoomSize (smoothedReverbSize);
     }
 
     if (distEnabled)
     {
-        distortionL_.setDrive (distDrive);
-        distortionR_.setDrive (distDrive);
-        distortionL_.setBassBoostDb (distBassBoost);
-        distortionR_.setBassBoostDb (distBassBoost);
+        distortionL_.setDrive (smoothedDistDrive);
+        distortionR_.setDrive (smoothedDistDrive);
+        distortionL_.setBassBoostDb (smoothedDistBassBoost);
+        distortionR_.setBassBoostDb (smoothedDistBassBoost);
     }
 
     if (adsrEnabled)
@@ -413,16 +449,17 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         adsr_.setSustain (adsrSustainParam_->load() / 100.0f);
         adsr_.setReleaseMs (adsrReleaseParam_->load());
         adsr_.setInverted (adsrInvertParam_->load() > 0.5f);
+        adsr_.updateCoefficients();
     }
 
     loFiL_.setBitDepth (bitDepth);
     loFiR_.setBitDepth (bitDepth);
     loFiL_.setSampleRateDivider (srDiv);
     loFiR_.setSampleRateDivider (srDiv);
-    loFiL_.setLPFCutoff (lpfCutoff);
-    loFiR_.setLPFCutoff (lpfCutoff);
-    antiAliasL_.setCutoff (lpfCutoff);
-    antiAliasR_.setCutoff (lpfCutoff);
+    loFiL_.setLPFCutoff (smoothedLpfCutoff);
+    loFiR_.setLPFCutoff (smoothedLpfCutoff);
+    antiAliasL_.setCutoff (smoothedLpfCutoff);
+    antiAliasR_.setCutoff (smoothedLpfCutoff);
 
     router_.setOutputMode (static_cast<SignalRouter::OutputMode> (monoMode));
 
@@ -456,6 +493,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     auto* dataL = buffer.getWritePointer (0);
     auto* dataR = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : dataL;
 
+    // Cache sample rate and precompute PPQ divisor (avoid virtual call per sample)
+    const double sr = getSampleRate();
+    const double ppqPerSample = (bpm > 0.0 && sr > 0.0) ? bpm / (60.0 * sr) : 0.0;
+
     for (int i = 0; i < numSamples; ++i)
     {
         float dryL = dataL[i];
@@ -464,14 +505,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         // Get smoothed parameter values
         float curPitchLSt = pitchLSmoothed_.getNextValue();
         float curPitchRSt = pitchRSmoothed_.getNextValue();
-        grainSmoothed_.getNextValue();    // advance smoother (block value used above)
-        stretchSmoothed_.getNextValue();  // advance smoother (block value used above)
         float curDelay = delaySmoothed_.getNextValue();
         float curFeedback = feedbackSmoothed_.getNextValue();
         float curMix = mixSmoothed_.getNextValue();
 
         // Sequencer: get pitch offset
-        float seqOffset = sequencer_.processSample (bpm, ppqPosition + static_cast<double> (i) / (bpm / 60.0 * getSampleRate()), isPlaying);
+        float seqOffset = sequencer_.processSample (bpm, ppqPosition + static_cast<double> (i) * ppqPerSample, isPlaying);
 
         // Envelope follower trigger
         if (envFollow && seqEnabled)
@@ -580,6 +619,18 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         if (buffer.getNumChannels() > 1)
             dataR[i] = outR;
     }
+
+    // Advance grain/stretch smoothers by block size (values used per-block, not per-sample)
+    grainSmoothed_.skip (numSamples);
+    stretchSmoothed_.skip (numSamples);
+
+    // Update latency if grain size changed significantly (> 1ms difference)
+    int newLatency = static_cast<int> (grainSmoothed_.getCurrentValue() * static_cast<float> (sr) / 1000.0f * 0.5f);
+    if (std::abs (newLatency - lastReportedLatency_) > static_cast<int> (sr * 0.001))
+    {
+        setLatencySamples (newLatency);
+        lastReportedLatency_ = newLatency;
+    }
 }
 
 //==============================================================================
@@ -603,7 +654,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     auto xml = getXmlFromBinary (data, sizeInBytes);
     if (xml && xml->hasTagName (apvts_.state.getType()))
+    {
+        int version = xml->getIntAttribute ("version", 1);
+        juce::ignoreUnused (version);
+        // Future version migration would go here:
+        // if (version < 2) { /* migrate v1 → v2 */ }
         apvts_.replaceState (juce::ValueTree::fromXml (*xml));
+    }
 }
 
 //==============================================================================

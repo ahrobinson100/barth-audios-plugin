@@ -16,13 +16,11 @@ void ADSREnvelope::reset()
 void ADSREnvelope::setAttackMs (float ms)
 {
     attackMs_ = (ms < 1.0f) ? 1.0f : ms;
-    updateCoefficients();
 }
 
 void ADSREnvelope::setDecayMs (float ms)
 {
     decayMs_ = (ms < 1.0f) ? 1.0f : ms;
-    updateCoefficients();
 }
 
 void ADSREnvelope::setSustain (float level)
@@ -33,7 +31,6 @@ void ADSREnvelope::setSustain (float level)
 void ADSREnvelope::setReleaseMs (float ms)
 {
     releaseMs_ = (ms < 1.0f) ? 1.0f : ms;
-    updateCoefficients();
 }
 
 void ADSREnvelope::setInverted (bool inverted)

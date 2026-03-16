@@ -106,7 +106,7 @@ void StepSequencer::advanceStep()
             break;
 
         case Mode::Random:
-            step = std::rand() % 4;
+            step = static_cast<int> (xorshift32() % 4);
             break;
 
         case Mode::PingPong:

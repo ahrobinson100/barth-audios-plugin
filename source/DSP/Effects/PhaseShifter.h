@@ -28,6 +28,7 @@ private:
         {
             float output = coeff * input + state;
             state = input - coeff * output;
+            if (! (state < -1.0e-8f || state > 1.0e-8f)) state = 0.0f;
             return output;
         }
 
@@ -46,4 +47,7 @@ private:
     // Notch frequency range (Hz)
     float minFreq_ = 200.0f;
     float maxFreq_ = 4000.0f;
+    float logMinFreq_ = 0.0f;  // precomputed std::log(minFreq_)
+    float logMaxFreq_ = 0.0f;  // precomputed std::log(maxFreq_)
+    float logFreqRange_ = 0.0f; // logMaxFreq_ - logMinFreq_
 };

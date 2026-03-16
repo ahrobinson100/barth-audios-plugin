@@ -69,3 +69,40 @@ TEST_CASE ("Distortion: no NaN/Inf at extreme settings", "[dist][safety]")
         REQUIRE_FALSE (std::isinf (out));
     }
 }
+
+TEST_CASE ("Distortion: silence in produces silence out", "[dist][safety]")
+{
+    Distortion dist;
+    dist.prepare (48000.0);
+    dist.setDrive (0.8f);
+    dist.setBassBoostDb (6.0f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = dist.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("Distortion: negative bass boost cuts low end", "[dist]")
+{
+    Distortion dist;
+    dist.prepare (48000.0);
+    dist.setDrive (0.0f);
+    dist.setBassBoostDb (-12.0f);
+
+    auto input = TestHelpers::makeSine (100.0f, 48000.0, 48000);
+    juce::AudioBuffer<float> output (1, 48000);
+    const auto* in = input.getReadPointer (0);
+    auto* out = output.getWritePointer (0);
+
+    for (int i = 0; i < 48000; ++i)
+        out[i] = dist.processSample (in[i]);
+
+    float inRms = TestHelpers::measureRMS (input);
+    float outRms = TestHelpers::measureRMS (output);
+    // Negative bass boost should reduce low frequency energy
+    REQUIRE (outRms < inRms);
+}

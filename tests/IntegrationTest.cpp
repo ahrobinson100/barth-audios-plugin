@@ -145,3 +145,208 @@ TEST_CASE ("Plugin instance name", "[instance]")
     PluginProcessor testPlugin;
     CHECK (testPlugin.getName() == juce::String ("Barth Audios Pitch Transposer"));
 }
+
+TEST_CASE ("Full chain: all effects enabled simultaneously", "[integration]")
+{
+    PluginProcessor plugin;
+    plugin.setPlayConfigDetails (2, 2, 48000.0, 512);
+    plugin.prepareToPlay (48000.0, 512);
+
+    auto& apvts = plugin.getAPVTS();
+    auto setParam = [&] (const juce::String& id, float val) {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (val));
+    };
+
+    // Enable everything
+    setParam ("pitchL", 5.0f);
+    setParam ("fxSelect", 3.0f); // Phaser
+    setParam ("fxFreq", 2.0f);
+    setParam ("fxDepth", 50.0f);
+    setParam ("reverbEnabled", 1.0f);
+    setParam ("reverbDecay", 2.0f);
+    setParam ("distEnabled", 1.0f);
+    setParam ("distDrive", 50.0f);
+    setParam ("adsrEnabled", 1.0f);
+    setParam ("bitDepth", 8.0f);
+    setParam ("srDiv", 2.0f);
+    setParam ("mix", 100.0f);
+
+    juce::MidiBuffer midi;
+    for (int block = 0; block < 94; ++block) // ~1 sec
+    {
+        auto buffer = TestHelpers::makeStereoSine (440.0f, 48000.0, 512);
+        plugin.processBlock (buffer, midi);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const auto* data = buffer.getReadPointer (ch);
+            for (int i = 0; i < 512; ++i)
+            {
+                REQUIRE_FALSE (std::isnan (data[i]));
+                REQUIRE_FALSE (std::isinf (data[i]));
+            }
+        }
+    }
+}
+
+TEST_CASE ("Full chain: silence with all effects on", "[integration]")
+{
+    PluginProcessor plugin;
+    plugin.setPlayConfigDetails (2, 2, 48000.0, 512);
+    plugin.prepareToPlay (48000.0, 512);
+
+    auto& apvts = plugin.getAPVTS();
+    auto setParam = [&] (const juce::String& id, float val) {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (val));
+    };
+
+    setParam ("reverbEnabled", 1.0f);
+    setParam ("distEnabled", 1.0f);
+    setParam ("distDrive", 50.0f);
+    setParam ("mix", 100.0f);
+
+    juce::MidiBuffer midi;
+    float maxOut = 0.0f;
+
+    for (int block = 0; block < 94; ++block)
+    {
+        juce::AudioBuffer<float> buffer (2, 512);
+        buffer.clear();
+        plugin.processBlock (buffer, midi);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const auto* data = buffer.getReadPointer (ch);
+            for (int i = 0; i < 512; ++i)
+                maxOut = std::max (maxOut, std::abs (data[i]));
+        }
+    }
+    REQUIRE (maxOut < 0.01f);
+}
+
+TEST_CASE ("Full chain: various sample rates", "[integration]")
+{
+    for (double sr : { 44100.0, 96000.0, 192000.0 })
+    {
+        PluginProcessor plugin;
+        plugin.setPlayConfigDetails (2, 2, sr, 512);
+        plugin.prepareToPlay (sr, 512);
+
+        juce::MidiBuffer midi;
+        int numSamples = static_cast<int> (sr); // 1 second
+
+        for (int pos = 0; pos + 512 <= numSamples; pos += 512)
+        {
+            auto buffer = TestHelpers::makeStereoSine (440.0f, sr, 512);
+            plugin.processBlock (buffer, midi);
+
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const auto* data = buffer.getReadPointer (ch);
+                for (int i = 0; i < 512; ++i)
+                {
+                    REQUIRE_FALSE (std::isnan (data[i]));
+                    REQUIRE_FALSE (std::isinf (data[i]));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE ("Full chain: comprehensive state round-trip", "[integration]")
+{
+    PluginProcessor plugin;
+    plugin.setPlayConfigDetails (2, 2, 48000.0, 512);
+    plugin.prepareToPlay (48000.0, 512);
+
+    auto& apvts = plugin.getAPVTS();
+    auto setParam = [&] (const juce::String& id, float val) {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (val));
+    };
+
+    // Set many parameters
+    setParam ("pitchL", 7.0f);
+    setParam ("pitchR", -5.0f);
+    setParam ("grain", 60.0f);
+    setParam ("stretch", 150.0f);
+    setParam ("delay", 500.0f);
+    setParam ("feedback", 50.0f);
+    setParam ("mix", 80.0f);
+    setParam ("reverbEnabled", 1.0f);
+    setParam ("reverbDecay", 3.0f);
+    setParam ("distEnabled", 1.0f);
+    setParam ("distDrive", 30.0f);
+    setParam ("bitDepth", 12.0f);
+
+    // Save
+    juce::MemoryBlock stateData;
+    plugin.getStateInformation (stateData);
+
+    // Restore to new instance
+    PluginProcessor plugin2;
+    plugin2.setPlayConfigDetails (2, 2, 48000.0, 512);
+    plugin2.prepareToPlay (48000.0, 512);
+    plugin2.setStateInformation (stateData.getData(), static_cast<int> (stateData.getSize()));
+
+    auto& apvts2 = plugin2.getAPVTS();
+
+    // Verify all set parameters
+    auto checkParam = [&] (const juce::String& id, float margin = 1.0f) {
+        auto* v1 = apvts.getRawParameterValue (id);
+        auto* v2 = apvts2.getRawParameterValue (id);
+        REQUIRE (v1->load() == Catch::Approx (v2->load()).margin (margin));
+    };
+
+    checkParam ("pitchL");
+    checkParam ("pitchR");
+    checkParam ("grain");
+    checkParam ("stretch");
+    checkParam ("delay", 5.0f);
+    checkParam ("feedback");
+    checkParam ("mix");
+    checkParam ("reverbDecay");
+    checkParam ("distDrive");
+    checkParam ("bitDepth");
+}
+
+TEST_CASE ("Full chain: parameter bounds iteration", "[integration][stress]")
+{
+    PluginProcessor plugin;
+    plugin.setPlayConfigDetails (2, 2, 48000.0, 512);
+    plugin.prepareToPlay (48000.0, 512);
+
+    auto& apvts = plugin.getAPVTS();
+    juce::MidiBuffer midi;
+
+    // Iterate every parameter to min then max, process a block each time
+    for (auto* param : apvts.processor.getParameters())
+    {
+        auto* rparam = dynamic_cast<juce::RangedAudioParameter*> (param);
+        if (rparam == nullptr) continue;
+
+        rparam->setValueNotifyingHost (0.0f); // min
+        auto buffer = TestHelpers::makeStereoSine (440.0f, 48000.0, 512);
+        plugin.processBlock (buffer, midi);
+
+        for (int ch = 0; ch < 2; ++ch)
+            for (int i = 0; i < 512; ++i)
+            {
+                REQUIRE_FALSE (std::isnan (buffer.getSample (ch, i)));
+                REQUIRE_FALSE (std::isinf (buffer.getSample (ch, i)));
+            }
+
+        rparam->setValueNotifyingHost (1.0f); // max
+        auto buffer2 = TestHelpers::makeStereoSine (440.0f, 48000.0, 512);
+        plugin.processBlock (buffer2, midi);
+
+        for (int ch = 0; ch < 2; ++ch)
+            for (int i = 0; i < 512; ++i)
+            {
+                REQUIRE_FALSE (std::isnan (buffer2.getSample (ch, i)));
+                REQUIRE_FALSE (std::isinf (buffer2.getSample (ch, i)));
+            }
+    }
+}

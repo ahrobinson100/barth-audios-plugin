@@ -3,6 +3,9 @@
 void PhaseShifter::prepare (double sampleRate)
 {
     sampleRate_ = sampleRate;
+    logMinFreq_ = std::log (minFreq_);
+    logMaxFreq_ = std::log (maxFreq_);
+    logFreqRange_ = logMaxFreq_ - logMinFreq_;
     reset();
 }
 
@@ -39,10 +42,8 @@ float PhaseShifter::processSample (float input, int channel)
     float lfo = static_cast<float> (std::sin (lfoPhase_ + phaseOffset));
     float lfoNorm = (lfo + 1.0f) * 0.5f; // 0..1
 
-    // Map LFO to frequency range (exponential mapping)
-    float logMin = std::log (minFreq_);
-    float logMax = std::log (maxFreq_);
-    float freq = std::exp (logMin + lfoNorm * depth_ * (logMax - logMin));
+    // Map LFO to frequency range (exponential mapping, logs precomputed in prepare())
+    float freq = std::exp (logMinFreq_ + lfoNorm * depth_ * logFreqRange_);
 
     // Convert frequency to all-pass coefficient
     float w = 3.14159265f * freq / static_cast<float> (sampleRate_);

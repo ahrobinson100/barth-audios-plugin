@@ -79,3 +79,44 @@ TEST_CASE ("LoFiProcessor: no NaN/Inf", "[lofi][safety]")
         REQUIRE_FALSE (std::isinf (out));
     }
 }
+
+TEST_CASE ("LoFiProcessor: silence in produces silence out", "[lofi][safety]")
+{
+    LoFiProcessor lofi;
+    lofi.prepare (48000.0);
+    lofi.setBitDepth (8);
+    lofi.setSampleRateDivider (4);
+    lofi.setLPFCutoff (5000.0f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = lofi.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("LoFiProcessor: reset clears state", "[lofi]")
+{
+    LoFiProcessor lofi;
+    lofi.prepare (48000.0);
+    lofi.setBitDepth (8);
+    lofi.setSampleRateDivider (4);
+    lofi.setLPFCutoff (5000.0f);
+
+    // Process some signal
+    for (int i = 0; i < 1000; ++i)
+        lofi.processSample (0.5f);
+
+    lofi.reset();
+
+    // After reset, silence should produce near-silence
+    float maxOut = 0.0f;
+    for (int i = 0; i < 100; ++i)
+    {
+        float out = lofi.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.01f);
+}

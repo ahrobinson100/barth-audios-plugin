@@ -66,3 +66,56 @@ TEST_CASE ("TimeStretcher: preserves pitch during stretch", "[stretch]")
     // A true pitch-preserving stretcher would need phase vocoder or PSOLA.
     REQUIRE (outFreq == Catch::Approx (220.0f).margin (25.0f));
 }
+
+TEST_CASE ("TimeStretcher: silence in produces silence out", "[stretch][safety]")
+{
+    TimeStretcher ts;
+    ts.prepare (48000.0, 512);
+    ts.setStretchRatio (2.0f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = ts.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("TimeStretcher: output stays bounded", "[stretch][safety]")
+{
+    TimeStretcher ts;
+    ts.prepare (48000.0, 512);
+    ts.setStretchRatio (2.0f);
+
+    auto input = TestHelpers::makeSine (440.0f, 48000.0, 48000);
+    const auto* in = input.getReadPointer (0);
+
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = ts.processSample (in[i]);
+        REQUIRE (std::abs (out) <= 1.5f);
+    }
+}
+
+TEST_CASE ("TimeStretcher: reset clears state", "[stretch]")
+{
+    TimeStretcher ts;
+    ts.prepare (48000.0, 512);
+    ts.setStretchRatio (2.0f);
+
+    auto input = TestHelpers::makeSine (440.0f, 48000.0, 4800);
+    const auto* in = input.getReadPointer (0);
+    for (int i = 0; i < 4800; ++i)
+        ts.processSample (in[i]);
+
+    ts.reset();
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        float out = ts.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.01f);
+}

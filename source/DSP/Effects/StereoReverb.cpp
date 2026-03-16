@@ -21,7 +21,6 @@ void StereoReverb::reset()
 {
     for (auto& line : lines_)
         line.reset();
-    modPhase_ = 0.0;
 }
 
 void StereoReverb::setDecayTime (float seconds)
@@ -99,6 +98,4 @@ void StereoReverb::processSample (float inputL, float inputR, float& outputL, fl
     // Stereo output: mix odd/even delay lines for L/R
     outputL = (delayed[0] + delayed[2]) * 0.5f;
     outputR = (delayed[1] + delayed[3]) * 0.5f;
-
-    // Modulation phase reserved for future use
 }

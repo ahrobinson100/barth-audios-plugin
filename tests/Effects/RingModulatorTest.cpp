@@ -53,3 +53,40 @@ TEST_CASE ("RingModulator: no NaN/Inf", "[ringmod][safety]")
         REQUIRE_FALSE (std::isinf (out));
     }
 }
+
+TEST_CASE ("RingModulator: silence in produces silence out", "[ringmod][safety]")
+{
+    RingModulator rm;
+    rm.prepare (48000.0);
+    rm.setFrequency (200.0f);
+    rm.setDepth (1.0f);
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+    {
+        float out = rm.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.0001f);
+}
+
+TEST_CASE ("RingModulator: reset clears state", "[ringmod]")
+{
+    RingModulator rm;
+    rm.prepare (48000.0);
+    rm.setFrequency (200.0f);
+    rm.setDepth (1.0f);
+
+    for (int i = 0; i < 4800; ++i)
+        rm.processSample (std::sin (static_cast<float> (i) * 0.1f));
+
+    rm.reset();
+
+    float maxOut = 0.0f;
+    for (int i = 0; i < 4800; ++i)
+    {
+        float out = rm.processSample (0.0f);
+        maxOut = std::max (maxOut, std::abs (out));
+    }
+    REQUIRE (maxOut < 0.001f);
+}

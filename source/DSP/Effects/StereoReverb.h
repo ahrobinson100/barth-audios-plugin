@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cmath>
+#include <vector>
 
 // Feedback Delay Network reverb with 4 delay lines and Hadamard mixing
 class StereoReverb
@@ -25,28 +26,28 @@ private:
 
     struct DelayLineFDN
     {
-        std::array<float, MAX_DELAY> buffer{};
+        std::vector<float> buffer;
         int writePtr = 0;
         int length = 1087;
         float dampState = 0.0f;
 
         void reset()
         {
-            buffer.fill (0.0f);
+            buffer.assign (MAX_DELAY, 0.0f);
             writePtr = 0;
             dampState = 0.0f;
         }
 
         void write (float sample)
         {
-            buffer[writePtr] = sample;
+            buffer[static_cast<size_t> (writePtr)] = sample;
             writePtr = (writePtr + 1) & DELAY_MASK;
         }
 
         float read() const
         {
             int readPtr = (writePtr - length) & DELAY_MASK;
-            return buffer[readPtr];
+            return buffer[static_cast<size_t> (readPtr)];
         }
     };
 
@@ -55,8 +56,4 @@ private:
     float damping_ = 0.3f;
     double sampleRate_ = 48000.0;
     float roomSize_ = 0.5f;
-
-    // Modulation for de-metallization
-    double modPhase_ = 0.0;
-    double modRate_ = 0.7; // Hz
 };

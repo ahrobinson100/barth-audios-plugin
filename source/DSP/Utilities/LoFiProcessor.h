@@ -22,7 +22,7 @@ public:
     void setBitDepth (int bits)
     {
         bitDepth_ = bits;
-        float levels = std::pow (2.0f, static_cast<float> (bits));
+        float levels = static_cast<float> (1 << bits);
         quantScale_ = levels - 1.0f;
         invQuantScale_ = 1.0f / quantScale_;
     }

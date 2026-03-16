@@ -40,6 +40,7 @@ public:
         float absInput = std::abs (input);
         float coeff = (absInput > envelope_) ? attackCoeff_ : releaseCoeff_;
         envelope_ += coeff * (absInput - envelope_);
+        if (! (envelope_ < -1.0e-8f || envelope_ > 1.0e-8f)) envelope_ = 0.0f;
         return envelope_;
     }
 
