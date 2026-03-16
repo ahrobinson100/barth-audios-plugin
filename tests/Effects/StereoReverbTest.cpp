@@ -122,8 +122,8 @@ TEST_CASE ("StereoReverb: damping reduces high frequencies", "[reverb]")
         return std::sqrt (rmsSum / static_cast<float> (count * 2));
     };
 
-    float brightRms = processImpulse (0.0f);
-    float dampedRms = processImpulse (0.9f);
+    float brightRms = processImpulse (1.0f);  // damping=1.0 = no filtering = bright
+    float dampedRms = processImpulse (0.1f);  // damping=0.1 = heavy filtering = damped
 
     // Damped tail should be quieter (energy absorbed by damping)
     REQUIRE (dampedRms < brightRms);

@@ -119,7 +119,7 @@ TEST_CASE ("DelayLine: handles all sample rates", "[delay][compat]")
         // Send impulse and verify it comes back at approximately the right time
         dl.processSample (1.0f);
         int delaySamples = static_cast<int> (10.0f * static_cast<float> (sr) / 1000.0f);
-        for (int i = 1; i < delaySamples - 1; ++i)
+        for (int i = 0; i < delaySamples - 1; ++i)
             dl.processSample (0.0f);
 
         float out = dl.processSample (0.0f);

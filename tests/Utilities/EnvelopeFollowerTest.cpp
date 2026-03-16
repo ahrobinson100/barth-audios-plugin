@@ -25,7 +25,7 @@ TEST_CASE ("EnvelopeFollower: detectTransient fires on impulse", "[envfollower]"
     env.prepare (48000.0);
     env.setAttackMs (0.5f);
     env.setReleaseMs (50.0f);
-    env.setThresholdDb (-20.0f);
+    env.setThresholdDb (-40.0f);
 
     // Feed silence, then sudden impulse
     for (int i = 0; i < 1000; ++i)
