@@ -43,7 +43,7 @@ TEST_CASE ("PitchShifter: no glitches at crossfade boundaries", "[pitch][safety]
     REQUIRE (glitches == 0);
 }
 
-TEST_CASE ("PitchShifter: silence in → silence out", "[pitch][safety]")
+TEST_CASE ("PitchShifter: silence in gives silence out", "[pitch][safety]")
 {
     const double sr = 48000.0;
     auto input = TestHelpers::makeSilence (48000);

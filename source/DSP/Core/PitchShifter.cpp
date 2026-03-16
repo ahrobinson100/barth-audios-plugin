@@ -76,7 +76,6 @@ float PitchShifter::processSample (float input)
 
     // Smooth pitch ratio (portamento)
     currentRatio_ += portaCoeff_ * (targetRatio_ - currentRatio_);
-    if (! (currentRatio_ < -1.0e-8f || currentRatio_ > 1.0e-8f)) currentRatio_ = 0.0f;
 
     // Advance both read pointers at variable speed
     readPtrA_ += static_cast<double> (currentRatio_);
