@@ -71,13 +71,15 @@ float StepSequencer::processSample (double bpm, double ppqPosition, bool isPlayi
     }
     else
     {
-        // Free-run timing
+        // Free-run timing — return current step, then advance for next call
+        float result = stepPitch_[static_cast<size_t> (currentStep_)];
         phaseSamples_ += 1.0;
         if (phaseSamples_ >= samplesPerStep_)
         {
             phaseSamples_ -= samplesPerStep_;
             advanceStep();
         }
+        return result;
     }
 
     return stepPitch_[static_cast<size_t> (currentStep_)];

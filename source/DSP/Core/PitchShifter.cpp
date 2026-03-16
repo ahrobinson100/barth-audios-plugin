@@ -29,8 +29,12 @@ void PitchShifter::reset()
 {
     buffer_.fill (0.0f);
     writePtr_ = 0;
-    readPtrA_ = 0.0;
-    readPtrB_ = grainSizeSamples_ * 0.5;
+    // Read pointers must trail behind write pointer by at least grain size
+    // so they always read previously-written data
+    readPtrA_ = static_cast<double> (BUFFER_SIZE) - static_cast<double> (grainSizeSamples_);
+    readPtrB_ = readPtrA_ - static_cast<double> (grainSizeSamples_) * 0.5;
+    if (readPtrB_ < 0.0)
+        readPtrB_ += BUFFER_SIZE;
     crossfadePhase_ = 0.0;
     currentRatio_ = targetRatio_;
 }

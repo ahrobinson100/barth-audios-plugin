@@ -45,17 +45,22 @@ float DelayLine::processSample (float input)
     // Write input + feedback to buffer
     float writeVal = input + feedbackSample_;
     buffer_[writePtr_] = writeVal;
-    writePtr_ = (writePtr_ + 1) & BUFFER_MASK;
 
-    // Read from delay position
+    // Read from delay position (compute before incrementing write pointer)
     if (delaySamples_ < 1.0f)
+    {
+        writePtr_ = (writePtr_ + 1) & BUFFER_MASK;
         return input; // No delay, pass through
+    }
 
     double readPos = static_cast<double> (writePtr_) - static_cast<double> (delaySamples_);
     if (readPos < 0.0)
         readPos += MAX_DELAY_SAMPLES;
 
     float delayed = hermiteInterp (readPos);
+
+    // Advance write pointer after reading
+    writePtr_ = (writePtr_ + 1) & BUFFER_MASK;
 
     // Feedback path: DC block + soft clip
     feedbackSample_ = dcBlocker_.processSample (delayed) * feedback_;
