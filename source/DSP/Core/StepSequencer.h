@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <atomic>
 #include <cstdlib>
 
 class StepSequencer
@@ -23,7 +24,7 @@ public:
     // Trigger next step externally (envelope follower)
     void triggerNextStep();
 
-    int getCurrentStep() const { return currentStep_; }
+    int getCurrentStep() const { return currentStep_.load (std::memory_order_relaxed); }
     bool isEnabled() const { return enabled_; }
 
 private:
@@ -31,7 +32,7 @@ private:
 
     std::array<float, 4> stepPitch_ = { 0.0f, 0.0f, 0.0f, 0.0f };
     Mode mode_ = Mode::Forward;
-    int currentStep_ = 0;
+    std::atomic<int> currentStep_{ 0 };
     int direction_ = 1; // For ping-pong
     bool enabled_ = false;
 

@@ -10,7 +10,7 @@ void StepSequencer::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void StepSequencer::reset()
 {
-    currentStep_ = 0;
+    currentStep_.store (0, std::memory_order_relaxed);
     direction_ = 1;
     phaseSamples_ = 0.0;
     lastBeatPos_ = -1.0;
@@ -72,7 +72,7 @@ float StepSequencer::processSample (double bpm, double ppqPosition, bool isPlayi
     else
     {
         // Free-run timing — return current step, then advance for next call
-        float result = stepPitch_[static_cast<size_t> (currentStep_)];
+        float result = stepPitch_[static_cast<size_t> (currentStep_.load (std::memory_order_relaxed))];
         phaseSamples_ += 1.0;
         if (phaseSamples_ >= samplesPerStep_)
         {
@@ -82,7 +82,7 @@ float StepSequencer::processSample (double bpm, double ppqPosition, bool isPlayi
         return result;
     }
 
-    return stepPitch_[static_cast<size_t> (currentStep_)];
+    return stepPitch_[static_cast<size_t> (currentStep_.load (std::memory_order_relaxed))];
 }
 
 void StepSequencer::triggerNextStep()
@@ -93,44 +93,48 @@ void StepSequencer::triggerNextStep()
 
 void StepSequencer::advanceStep()
 {
+    int step = currentStep_.load (std::memory_order_relaxed);
+
     switch (mode_)
     {
         case Mode::Forward:
-            currentStep_ = (currentStep_ + 1) % 4;
+            step = (step + 1) % 4;
             break;
 
         case Mode::Backward:
-            currentStep_ = (currentStep_ + 3) % 4; // -1 mod 4
+            step = (step + 3) % 4; // -1 mod 4
             break;
 
         case Mode::Random:
-            currentStep_ = std::rand() % 4;
+            step = std::rand() % 4;
             break;
 
         case Mode::PingPong:
-            currentStep_ += direction_;
-            if (currentStep_ >= 3)
+            step += direction_;
+            if (step >= 3)
             {
-                currentStep_ = 3;
+                step = 3;
                 direction_ = -1;
             }
-            else if (currentStep_ <= 0)
+            else if (step <= 0)
             {
-                currentStep_ = 0;
+                step = 0;
                 direction_ = 1;
             }
             break;
 
         case Mode::TwoStep:
-            currentStep_ = (currentStep_ + 1) % 2;
+            step = (step + 1) % 2;
             break;
 
         case Mode::ThreeStep:
-            currentStep_ = (currentStep_ + 1) % 3;
+            step = (step + 1) % 3;
             break;
 
         case Mode::FourStep:
-            currentStep_ = (currentStep_ + 1) % 4;
+            step = (step + 1) % 4;
             break;
     }
+
+    currentStep_.store (step, std::memory_order_relaxed);
 }

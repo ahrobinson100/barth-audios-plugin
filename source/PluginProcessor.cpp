@@ -365,7 +365,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     sequencer_.setStepPitch (2, seqStep3Param_->load());
     sequencer_.setStepPitch (3, seqStep4Param_->load());
 
-    static const float divisionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
+    static constexpr float divisionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
     sequencer_.setDivision (divisionValues[seqDivIdx < 6 ? seqDivIdx : 2]);
 
     envFollower_.setThresholdDb (envThresholdParam_->load());
@@ -443,6 +443,15 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         }
     }
 
+    // Set grain size and stretch ratio once per block (no need for per-sample updates)
+    float blockGrain = grainSmoothed_.getCurrentValue();
+    pitchShifterL_.setGrainSizeMs (blockGrain);
+    pitchShifterR_.setGrainSizeMs (blockGrain);
+
+    float blockStretch = stretchSmoothed_.getCurrentValue();
+    timeStretcherL_.setStretchRatio (blockStretch);
+    timeStretcherR_.setStretchRatio (blockStretch);
+
     // Process sample-by-sample
     auto* dataL = buffer.getWritePointer (0);
     auto* dataR = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : dataL;
@@ -455,8 +464,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         // Get smoothed parameter values
         float curPitchLSt = pitchLSmoothed_.getNextValue();
         float curPitchRSt = pitchRSmoothed_.getNextValue();
-        float curGrain = grainSmoothed_.getNextValue();
-        float curStretch = stretchSmoothed_.getNextValue();
+        grainSmoothed_.getNextValue();    // advance smoother (block value used above)
+        stretchSmoothed_.getNextValue();  // advance smoother (block value used above)
         float curDelay = delaySmoothed_.getNextValue();
         float curFeedback = feedbackSmoothed_.getNextValue();
         float curMix = mixSmoothed_.getNextValue();
@@ -472,14 +481,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 sequencer_.triggerNextStep();
         }
 
-        // Apply pitch with sequencer offset
+        // Apply pitch with sequencer offset (std::pow per sample is unavoidable
+        // since pitch changes every sample via SmoothedValue + sequencer)
         float totalPitchLSt = curPitchLSt + seqOffset;
         float totalPitchRSt = curPitchRSt + seqOffset;
 
         pitchShifterL_.setPitchSemitones (totalPitchLSt);
         pitchShifterR_.setPitchSemitones (totalPitchRSt);
-        pitchShifterL_.setGrainSizeMs (curGrain);
-        pitchShifterR_.setGrainSizeMs (curGrain);
 
         // Anti-alias LPF
         float filtL = antiAliasL_.processLowPass (dryL);
@@ -489,9 +497,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         float pitchedL = pitchShifterL_.processSample (filtL);
         float pitchedR = pitchShifterR_.processSample (filtR);
 
-        // Time stretch
-        timeStretcherL_.setStretchRatio (curStretch);
-        timeStretcherR_.setStretchRatio (curStretch);
+        // Time stretch (ratio set per-block above)
         float stretchedL = timeStretcherL_.processSample (pitchedL);
         float stretchedR = timeStretcherR_.processSample (pitchedR);
 

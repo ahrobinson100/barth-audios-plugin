@@ -73,6 +73,7 @@ void StereoReverb::processSample (float inputL, float inputR, float& outputL, fl
         auto& line = lines_[static_cast<size_t> (i)];
         delayed[static_cast<size_t> (i)] = line.dampState + damping_ * (delayed[static_cast<size_t> (i)] - line.dampState);
         line.dampState = delayed[static_cast<size_t> (i)];
+        JUCE_SNAP_TO_ZERO (line.dampState);
     }
 
     // Hadamard mixing matrix (4x4, normalized)
@@ -99,7 +100,5 @@ void StereoReverb::processSample (float inputL, float inputR, float& outputL, fl
     outputL = (delayed[0] + delayed[2]) * 0.5f;
     outputR = (delayed[1] + delayed[3]) * 0.5f;
 
-    // Advance modulation phase (for potential future modulated delays)
-    modPhase_ += modRate_ * 6.283185307 / sampleRate_;
-    if (modPhase_ > 6.283185307) modPhase_ -= 6.283185307;
+    // Modulation phase reserved for future use
 }
