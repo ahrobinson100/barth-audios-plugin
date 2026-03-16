@@ -15,21 +15,22 @@ TEST_CASE ("StepSequencer: forward mode cycles correctly", "[seq]")
     seq.setStepPitch (3, 5.0f);
     seq.setRateHz (48000.0f); // 1 sample per step for easy testing
 
+    // Each call returns current step pitch, then advances for next call
     float val0 = seq.processSample (120.0, 0.0, false);
-    REQUIRE (val0 == Catch::Approx (0.0f));
+    REQUIRE (val0 == Catch::Approx (0.0f));   // Step 0
+    REQUIRE (seq.getCurrentStep() == 1);       // Advanced to 1
 
-    // Process 1 sample to advance
-    seq.processSample (120.0, 0.0, false);
-    REQUIRE (seq.getCurrentStep() == 1);
+    float val1 = seq.processSample (120.0, 0.0, false);
+    REQUIRE (val1 == Catch::Approx (7.0f));   // Step 1
+    REQUIRE (seq.getCurrentStep() == 2);       // Advanced to 2
 
-    seq.processSample (120.0, 0.0, false);
-    REQUIRE (seq.getCurrentStep() == 2);
+    float val2 = seq.processSample (120.0, 0.0, false);
+    REQUIRE (val2 == Catch::Approx (12.0f));  // Step 2
+    REQUIRE (seq.getCurrentStep() == 3);       // Advanced to 3
 
-    seq.processSample (120.0, 0.0, false);
-    REQUIRE (seq.getCurrentStep() == 3);
-
-    seq.processSample (120.0, 0.0, false);
-    REQUIRE (seq.getCurrentStep() == 0); // Wraps back
+    float val3 = seq.processSample (120.0, 0.0, false);
+    REQUIRE (val3 == Catch::Approx (5.0f));   // Step 3
+    REQUIRE (seq.getCurrentStep() == 0);       // Wraps back to 0
 }
 
 TEST_CASE ("StepSequencer: backward mode", "[seq]")
