@@ -27,7 +27,7 @@ void PitchShifter::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void PitchShifter::reset()
 {
-    buffer_.fill (0.0f);
+    buffer_.assign (BUFFER_SIZE, 0.0f);
     writePtr_ = 0;
     // Read pointers must trail behind write pointer by at least grain size
     // so they always read previously-written data

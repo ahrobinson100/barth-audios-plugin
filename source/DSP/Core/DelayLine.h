@@ -1,7 +1,7 @@
 #pragma once
 #include "../Utilities/DCBlocker.h"
 #include "../Utilities/SoftClipper.h"
-#include <array>
+#include <vector>
 #include <cmath>
 
 class DelayLine
@@ -23,7 +23,7 @@ public:
 private:
     float hermiteInterp (double pos) const;
 
-    std::array<float, MAX_DELAY_SAMPLES> buffer_{};
+    std::vector<float> buffer_;
     int writePtr_ = 0;
     float delaySamples_ = 0.0f;
     float feedback_ = 0.0f;

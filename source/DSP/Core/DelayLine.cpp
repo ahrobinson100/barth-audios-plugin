@@ -10,7 +10,7 @@ void DelayLine::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void DelayLine::reset()
 {
-    buffer_.fill (0.0f);
+    buffer_.assign (MAX_DELAY_SAMPLES, 0.0f);
     writePtr_ = 0;
     feedbackSample_ = 0.0f;
     dcBlocker_.reset();

@@ -10,7 +10,7 @@ void TimeStretcher::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void TimeStretcher::reset()
 {
-    buffer_.fill (0.0f);
+    buffer_.assign (BUFFER_SIZE, 0.0f);
     writePtr_ = 0;
     readPtrA_ = 0.0;
     readPtrB_ = grainSizeSamples_ * 0.5;

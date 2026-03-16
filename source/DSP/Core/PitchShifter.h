@@ -1,5 +1,5 @@
 #pragma once
-#include <array>
+#include <vector>
 #include <cmath>
 #include <cstring>
 
@@ -28,7 +28,7 @@ private:
     float hermiteInterp (double pos) const;
     void initHannLUT();
 
-    std::array<float, BUFFER_SIZE> buffer_{};
+    std::vector<float> buffer_;
     int writePtr_ = 0;
 
     double readPtrA_ = 0.0;

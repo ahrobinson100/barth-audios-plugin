@@ -1,5 +1,5 @@
 #pragma once
-#include <array>
+#include <vector>
 #include <cmath>
 
 // Pitch-independent time stretcher using overlap-add with two read pointers.
@@ -23,7 +23,7 @@ private:
     float hermiteInterp (double pos) const;
     void initHannLUT();
 
-    std::array<float, BUFFER_SIZE> buffer_{};
+    std::vector<float> buffer_;
     int writePtr_ = 0;
     double readPtrA_ = 0.0;
     double readPtrB_ = 0.0;
