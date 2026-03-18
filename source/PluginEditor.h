@@ -16,10 +16,13 @@ private:
 
     PluginProcessor& processorRef;
 
-    // Custom LookAndFeel for dark theme
+    // Custom LookAndFeel with Valhalla-style arc knobs
     struct DarkLookAndFeel : public juce::LookAndFeel_V4
     {
         DarkLookAndFeel();
+        void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
+                               float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
+                               juce::Slider& slider) override;
     };
     DarkLookAndFeel darkLnf_;
 
@@ -34,14 +37,21 @@ private:
                    juce::AudioProcessorValueTreeState& apvts, juce::Component* parent);
     };
 
-    // === Core Section ===
-    KnobWithLabel pitchLKnob_, pitchRKnob_, grainKnob_, portamentoKnob_;
+    // === Transpose Section ===
+    KnobWithLabel progKnobs_[4][2];  // [program 0-3][0=voiceA, 1=voiceB]
+    juce::TextButton progButtons_[4] { {"1"}, {"2"}, {"3"}, {"4"} };
+    juce::ComboBox activeProgramBox_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> activeProgramAttach_;
+    int lastActiveProgram_ = -1;
+
+    KnobWithLabel grainKnob_, portamentoKnob_;
+    juce::ToggleButton vintageCharButton_ { "Vintage" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> vintageCharAttach_;
+
+    // === Delay Section ===
     KnobWithLabel stretchKnob_, delayKnob_, feedbackKnob_, mixKnob_;
-    juce::ToggleButton pitchLinkButton_ { "Link" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> pitchLinkAttach_;
 
     // === Sequencer Section ===
-    KnobWithLabel seqStep1Knob_, seqStep2Knob_, seqStep3Knob_, seqStep4Knob_;
     KnobWithLabel seqRateKnob_;
     juce::ToggleButton seqEnabledButton_ { "Seq" };
     juce::ToggleButton seqSyncButton_ { "Sync" };
@@ -49,9 +59,6 @@ private:
     juce::ComboBox seqModeBox_, seqDivisionBox_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> seqEnabledAttach_, seqSyncAttach_, envFollowAttach_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> seqModeAttach_, seqDivisionAttach_;
-
-    // Step LED indicators
-    int lastSeqStep_ = -1;
 
     // === Effects Section ===
     KnobWithLabel fxFreqKnob_, fxDepthKnob_;
@@ -82,7 +89,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> monoModeAttach_;
 
     // Section labels
-    juce::Label coreSectionLabel_, seqSectionLabel_, fxSectionLabel_;
+    juce::Label transposeSectionLabel_, delaySectionLabel_, seqSectionLabel_, fxSectionLabel_;
     juce::Label adsrSectionLabel_, lofiSectionLabel_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)

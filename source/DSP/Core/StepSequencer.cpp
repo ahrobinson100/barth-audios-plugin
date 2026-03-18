@@ -16,12 +16,6 @@ void StepSequencer::reset()
     lastBeatPos_ = -1.0;
 }
 
-void StepSequencer::setStepPitch (int step, float semitones)
-{
-    if (step >= 0 && step < 4)
-        stepPitch_[static_cast<size_t> (step)] = semitones;
-}
-
 void StepSequencer::setMode (Mode mode)
 {
     mode_ = mode;
@@ -51,10 +45,10 @@ void StepSequencer::setEnabled (bool enabled)
         reset();
 }
 
-float StepSequencer::processSample (double bpm, double ppqPosition, bool isPlaying)
+void StepSequencer::processSample (double bpm, double ppqPosition, bool isPlaying)
 {
     if (! enabled_)
-        return 0.0f;
+        return;
 
     if (hostSync_ && isPlaying && bpm > 0.0)
     {
@@ -71,18 +65,14 @@ float StepSequencer::processSample (double bpm, double ppqPosition, bool isPlayi
     }
     else
     {
-        // Free-run timing — return current step, then advance for next call
-        float result = stepPitch_[static_cast<size_t> (currentStep_.load (std::memory_order_relaxed))];
+        // Free-run timing
         phaseSamples_ += 1.0;
         if (phaseSamples_ >= samplesPerStep_)
         {
             phaseSamples_ -= samplesPerStep_;
             advanceStep();
         }
-        return result;
     }
-
-    return stepPitch_[static_cast<size_t> (currentStep_.load (std::memory_order_relaxed))];
 }
 
 void StepSequencer::triggerNextStep()

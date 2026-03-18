@@ -6,15 +6,38 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
+    // === Transpose Section: 4 programs x 2 voices ===
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog1PitchA", 1 }, "Prog 1 Voice A",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog1PitchB", 1 }, "Prog 1 Voice B",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog2PitchA", 1 }, "Prog 2 Voice A",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog2PitchB", 1 }, "Prog 2 Voice B",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog3PitchA", 1 }, "Prog 3 Voice A",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog3PitchB", 1 }, "Prog 3 Voice B",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog4PitchA", 1 }, "Prog 4 Voice A",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "prog4PitchB", 1 }, "Prog 4 Voice B",
+        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
+
+    // Program selector (when sequencer is off)
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "activeProgram", 1 }, "Active Program",
+        juce::StringArray { "1", "2", "3", "4" }, 0));
+
     // === Core Section ===
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "pitchL", 1 }, "Pitch L",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "pitchR", 1 }, "Pitch R",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { "pitchLink", 1 }, "Link L/R", true));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "grain", 1 }, "Grain Size",
         juce::NormalisableRange<float> (5.0f, 80.0f, 0.1f), 40.0f));
@@ -33,22 +56,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "mix", 1 }, "Mix",
         juce::NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "vintageChar", 1 }, "Vintage Character", false));
 
     // === Sequencer Section ===
     params.push_back (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { "seqEnabled", 1 }, "Sequencer", false));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "seqStep1", 1 }, "Step 1",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "seqStep2", 1 }, "Step 2",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "seqStep3", 1 }, "Step 3",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "seqStep4", 1 }, "Step 4",
-        juce::NormalisableRange<float> (-60.0f, 24.0f, 0.01f), 0.0f));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { "seqMode", 1 }, "Seq Mode",
         juce::StringArray { "Forward", "Backward", "Random", "Ping-Pong", "2-Step", "3-Step", "4-Step" }, 0));
@@ -152,9 +165,16 @@ PluginProcessor::PluginProcessor()
       apvts_ (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
     // Cache atomic parameter pointers (safe: pointers are stable for plugin lifetime)
-    pitchLParam_ = apvts_.getRawParameterValue ("pitchL");
-    pitchRParam_ = apvts_.getRawParameterValue ("pitchR");
-    pitchLinkParam_ = apvts_.getRawParameterValue ("pitchLink");
+    progPitchAParams_[0] = apvts_.getRawParameterValue ("prog1PitchA");
+    progPitchBParams_[0] = apvts_.getRawParameterValue ("prog1PitchB");
+    progPitchAParams_[1] = apvts_.getRawParameterValue ("prog2PitchA");
+    progPitchBParams_[1] = apvts_.getRawParameterValue ("prog2PitchB");
+    progPitchAParams_[2] = apvts_.getRawParameterValue ("prog3PitchA");
+    progPitchBParams_[2] = apvts_.getRawParameterValue ("prog3PitchB");
+    progPitchAParams_[3] = apvts_.getRawParameterValue ("prog4PitchA");
+    progPitchBParams_[3] = apvts_.getRawParameterValue ("prog4PitchB");
+    activeProgramParam_ = apvts_.getRawParameterValue ("activeProgram");
+
     grainParam_ = apvts_.getRawParameterValue ("grain");
     portamentoParam_ = apvts_.getRawParameterValue ("portamento");
     stretchParam_ = apvts_.getRawParameterValue ("stretch");
@@ -163,10 +183,6 @@ PluginProcessor::PluginProcessor()
     mixParam_ = apvts_.getRawParameterValue ("mix");
 
     seqEnabledParam_ = apvts_.getRawParameterValue ("seqEnabled");
-    seqStep1Param_ = apvts_.getRawParameterValue ("seqStep1");
-    seqStep2Param_ = apvts_.getRawParameterValue ("seqStep2");
-    seqStep3Param_ = apvts_.getRawParameterValue ("seqStep3");
-    seqStep4Param_ = apvts_.getRawParameterValue ("seqStep4");
     seqModeParam_ = apvts_.getRawParameterValue ("seqMode");
     seqRateParam_ = apvts_.getRawParameterValue ("seqRate");
     seqSyncParam_ = apvts_.getRawParameterValue ("seqSync");
@@ -200,6 +216,7 @@ PluginProcessor::PluginProcessor()
     srDivParam_ = apvts_.getRawParameterValue ("srDiv");
     lpfCutoffParam_ = apvts_.getRawParameterValue ("lpfCutoff");
     monoModeParam_ = apvts_.getRawParameterValue ("monoMode");
+    vintageCharParam_ = apvts_.getRawParameterValue ("vintageChar");
 }
 
 PluginProcessor::~PluginProcessor()
@@ -260,8 +277,8 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     sequencer_.prepare (sampleRate, samplesPerBlock);
 
     // Smoothed values
-    pitchLSmoothed_.reset (sampleRate, 0.05);
-    pitchRSmoothed_.reset (sampleRate, 0.05);
+    pitchASmoothed_.reset (sampleRate, 0.05);
+    pitchBSmoothed_.reset (sampleRate, 0.05);
     grainSmoothed_.reset (sampleRate, 0.02);
     stretchSmoothed_.reset (sampleRate, 0.02);
     delaySmoothed_.reset (sampleRate, 0.02);
@@ -297,13 +314,20 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 #if ! JucePlugin_IsSynth
     const auto& inSet = layouts.getMainInputChannelSet();
-    // Allow mono-in → stereo-out as well as matching layouts
+    // Allow mono-in -> stereo-out as well as matching layouts
     if (inSet != outSet
         && ! (inSet == juce::AudioChannelSet::mono() && outSet == juce::AudioChannelSet::stereo()))
         return false;
 #endif
 
     return true;
+}
+
+int PluginProcessor::getActiveProgram() const
+{
+    if (seqEnabledParam_->load() > 0.5f)
+        return sequencer_.getCurrentStep();
+    return juce::jlimit (0, 3, static_cast<int> (activeProgramParam_->load()));
 }
 
 void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -317,15 +341,22 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Mono-in → stereo-out: duplicate input channel
+    // Mono-in -> stereo-out: duplicate input channel
     if (totalNumInputChannels == 1 && totalNumOutputChannels == 2)
         buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
 
     const int numSamples = buffer.getNumSamples();
 
-    // Read all parameters atomically (no locks)
-    const float pitchLSt = pitchLParam_->load();
-    const float pitchRSt = pitchLinkParam_->load() > 0.5f ? pitchLSt : pitchRParam_->load();
+    // Read all 8 program pitches into stack arrays
+    float progPitchA[4], progPitchB[4];
+    for (int p = 0; p < 4; ++p)
+    {
+        progPitchA[p] = progPitchAParams_[p]->load();
+        progPitchB[p] = progPitchBParams_[p]->load();
+    }
+    const int manualProg = static_cast<int> (activeProgramParam_->load());
+
+    // Read other parameters atomically
     const float grainMs = grainParam_->load();
     const float portamento = portamentoParam_->load() / 100.0f;
     const float stretchPct = stretchParam_->load() / 100.0f;
@@ -361,9 +392,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     const float lpfCutoff = lpfCutoffParam_->load();
     const int monoMode = static_cast<int> (monoModeParam_->load());
 
-    // Update smoothed targets
-    pitchLSmoothed_.setTargetValue (pitchLSt);
-    pitchRSmoothed_.setTargetValue (pitchRSt);
+    // Set initial smooth targets from active program
+    int activeIdx = seqEnabled ? sequencer_.getCurrentStep() : manualProg;
+    activeIdx = juce::jlimit (0, 3, activeIdx);
+    pitchASmoothed_.setTargetValue (progPitchA[activeIdx]);
+    pitchBSmoothed_.setTargetValue (progPitchB[activeIdx]);
+
+    // Update other smoothed targets
     grainSmoothed_.setTargetValue (grainMs);
     stretchSmoothed_.setTargetValue (stretchPct);
     delaySmoothed_.setTargetValue (delayMs);
@@ -371,6 +406,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     mixSmoothed_.setTargetValue (mixPct);
 
     // Update non-smoothed DSP parameters (per-block, not per-sample)
+    const bool vintageChar = vintageCharParam_->load() > 0.5f;
+    pitchShifterL_.setVintageCharacter (vintageChar);
+    pitchShifterR_.setVintageCharacter (vintageChar);
     pitchShifterL_.setPortamento (portamento);
     pitchShifterR_.setPortamento (portamento);
 
@@ -378,10 +416,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     sequencer_.setMode (static_cast<StepSequencer::Mode> (seqMode));
     sequencer_.setRateHz (seqRate);
     sequencer_.setHostSync (seqSync);
-    sequencer_.setStepPitch (0, seqStep1Param_->load());
-    sequencer_.setStepPitch (1, seqStep2Param_->load());
-    sequencer_.setStepPitch (2, seqStep3Param_->load());
-    sequencer_.setStepPitch (3, seqStep4Param_->load());
 
     static constexpr float divisionValues[] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f };
     sequencer_.setDivision (divisionValues[seqDivIdx < 6 ? seqDivIdx : 2]);
@@ -502,15 +536,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         float dryL = dataL[i];
         float dryR = dataR[i];
 
-        // Get smoothed parameter values
-        float curPitchLSt = pitchLSmoothed_.getNextValue();
-        float curPitchRSt = pitchRSmoothed_.getNextValue();
-        float curDelay = delaySmoothed_.getNextValue();
-        float curFeedback = feedbackSmoothed_.getNextValue();
-        float curMix = mixSmoothed_.getNextValue();
-
-        // Sequencer: get pitch offset
-        float seqOffset = sequencer_.processSample (bpm, ppqPosition + static_cast<double> (i) * ppqPerSample, isPlaying);
+        // Sequencer: advance timing (void, just timing)
+        sequencer_.processSample (bpm, ppqPosition + static_cast<double> (i) * ppqPerSample, isPlaying);
 
         // Envelope follower trigger
         if (envFollow && seqEnabled)
@@ -520,13 +547,24 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 sequencer_.triggerNextStep();
         }
 
-        // Apply pitch with sequencer offset (std::pow per sample is unavoidable
-        // since pitch changes every sample via SmoothedValue + sequencer)
-        float totalPitchLSt = curPitchLSt + seqOffset;
-        float totalPitchRSt = curPitchRSt + seqOffset;
+        // Re-check active program (sequencer may have advanced mid-block)
+        if (seqEnabled)
+        {
+            int newIdx = juce::jlimit (0, 3, sequencer_.getCurrentStep());
+            pitchASmoothed_.setTargetValue (progPitchA[newIdx]);
+            pitchBSmoothed_.setTargetValue (progPitchB[newIdx]);
+        }
 
-        pitchShifterL_.setPitchSemitones (totalPitchLSt);
-        pitchShifterR_.setPitchSemitones (totalPitchRSt);
+        // Get smoothed pitch values
+        float curPitchA = pitchASmoothed_.getNextValue();
+        float curPitchB = pitchBSmoothed_.getNextValue();
+        float curDelay = delaySmoothed_.getNextValue();
+        float curFeedback = feedbackSmoothed_.getNextValue();
+        float curMix = mixSmoothed_.getNextValue();
+
+        // Apply pitch directly from program (no sequencer offset)
+        pitchShifterL_.setPitchSemitones (curPitchA);
+        pitchShifterR_.setPitchSemitones (curPitchB);
 
         // Anti-alias LPF
         float filtL = antiAliasL_.processLowPass (dryL);
@@ -657,8 +695,6 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     {
         int version = xml->getIntAttribute ("version", 1);
         juce::ignoreUnused (version);
-        // Future version migration would go here:
-        // if (version < 2) { /* migrate v1 → v2 */ }
         apvts_.replaceState (juce::ValueTree::fromXml (*xml));
     }
 }

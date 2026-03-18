@@ -39,7 +39,7 @@ TEST_CASE ("Full chain: state save/restore round-trip", "[integration]")
 
     // Set some parameters
     auto& apvts = plugin.getAPVTS();
-    if (auto* p = apvts.getParameter ("pitchL"))
+    if (auto* p = apvts.getParameter ("prog1PitchA"))
         p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (7.0f));
     if (auto* p = apvts.getParameter ("delay"))
         p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (500.0f));
@@ -58,9 +58,9 @@ TEST_CASE ("Full chain: state save/restore round-trip", "[integration]")
 
     // Verify parameters match
     auto& apvts2 = plugin2.getAPVTS();
-    auto* pitchL1 = apvts.getRawParameterValue ("pitchL");
-    auto* pitchL2 = apvts2.getRawParameterValue ("pitchL");
-    REQUIRE (pitchL1->load() == Catch::Approx (pitchL2->load()).margin (0.1f));
+    auto* pitchA1 = apvts.getRawParameterValue ("prog1PitchA");
+    auto* pitchA2 = apvts2.getRawParameterValue ("prog1PitchA");
+    REQUIRE (pitchA1->load() == Catch::Approx (pitchA2->load()).margin (0.1f));
 
     auto* delay1 = apvts.getRawParameterValue ("delay");
     auto* delay2 = apvts2.getRawParameterValue ("delay");
@@ -81,7 +81,7 @@ TEST_CASE ("Full chain: rapid parameter automation", "[integration][stress]")
     {
         // Change pitch every block
         float pitch = -24.0f + static_cast<float> (block % 48) * 1.0f;
-        if (auto* p = apvts.getParameter ("pitchL"))
+        if (auto* p = apvts.getParameter ("prog1PitchA"))
             p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (pitch));
 
         auto buffer = TestHelpers::makeStereoSine (440.0f, 48000.0, 128);
@@ -114,8 +114,8 @@ TEST_CASE ("Full chain: extreme settings stress test", "[integration][stress]")
             p->setValueNotifyingHost (p->getNormalisableRange().convertTo0to1 (val));
     };
 
-    setParam ("pitchL", 24.0f);   // Max pitch up
-    setParam ("delay", 5000.0f);  // Max delay
+    setParam ("prog1PitchA", 24.0f);   // Max pitch up
+    setParam ("delay", 5000.0f);       // Max delay
     setParam ("feedback", 95.0f); // Max feedback
     setParam ("mix", 100.0f);     // Full wet
 
@@ -159,7 +159,7 @@ TEST_CASE ("Full chain: all effects enabled simultaneously", "[integration]")
     };
 
     // Enable everything
-    setParam ("pitchL", 5.0f);
+    setParam ("prog1PitchA", 5.0f);
     setParam ("fxSelect", 3.0f); // Phaser
     setParam ("fxFreq", 2.0f);
     setParam ("fxDepth", 50.0f);
@@ -268,8 +268,8 @@ TEST_CASE ("Full chain: comprehensive state round-trip", "[integration]")
     };
 
     // Set many parameters
-    setParam ("pitchL", 7.0f);
-    setParam ("pitchR", -5.0f);
+    setParam ("prog1PitchA", 7.0f);
+    setParam ("prog1PitchB", -5.0f);
     setParam ("grain", 60.0f);
     setParam ("stretch", 150.0f);
     setParam ("delay", 500.0f);
@@ -300,8 +300,8 @@ TEST_CASE ("Full chain: comprehensive state round-trip", "[integration]")
         REQUIRE (v1->load() == Catch::Approx (v2->load()).margin (margin));
     };
 
-    checkParam ("pitchL");
-    checkParam ("pitchR");
+    checkParam ("prog1PitchA");
+    checkParam ("prog1PitchB");
     checkParam ("grain");
     checkParam ("stretch");
     checkParam ("delay", 5.0f);

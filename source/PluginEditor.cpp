@@ -20,6 +20,35 @@ PluginEditor::DarkLookAndFeel::DarkLookAndFeel()
     setColour (juce::PopupMenu::backgroundColourId, juce::Colour (0xff1a1a2e));
     setColour (juce::PopupMenu::textColourId, juce::Colours::white);
     setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xffe94560));
+    setColour (juce::TextButton::buttonColourId, juce::Colour (0xff222244));
+    setColour (juce::TextButton::textColourOffId, juce::Colour (0xffccccdd));
+}
+
+void PluginEditor::DarkLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
+                                                       float sliderPos, float startAngle, float endAngle,
+                                                       juce::Slider& /*slider*/)
+{
+    float radius = static_cast<float> (juce::jmin (w, h)) * 0.4f;
+    float cx = static_cast<float> (x) + static_cast<float> (w) * 0.5f;
+    float cy = static_cast<float> (y) + static_cast<float> (h) * 0.5f;
+    float angle = startAngle + sliderPos * (endAngle - startAngle);
+
+    // Background circle
+    g.setColour (juce::Colour (0xff222244));
+    g.fillEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
+
+    // Value arc
+    float arcRadius = radius * 0.85f;
+    juce::Path arc;
+    arc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f, startAngle, angle, true);
+    g.setColour (juce::Colour (0xffe94560));
+    g.strokePath (arc, juce::PathStrokeType (2.5f));
+
+    // Dot indicator at current position
+    float dotR = 3.0f;
+    float dotX = cx + arcRadius * std::cos (angle - juce::MathConstants<float>::halfPi);
+    float dotY = cy + arcRadius * std::sin (angle - juce::MathConstants<float>::halfPi);
+    g.fillEllipse (dotX - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
 }
 
 //==============================================================================
@@ -57,30 +86,51 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         lbl.setColour (juce::Label::textColourId, juce::Colour (0xffe94560));
         addAndMakeVisible (lbl);
     };
-    initSectionLabel (coreSectionLabel_, "CORE");
+    initSectionLabel (transposeSectionLabel_, "TRANSPOSE");
+    initSectionLabel (delaySectionLabel_, "DELAY");
     initSectionLabel (seqSectionLabel_, "SEQUENCER");
     initSectionLabel (fxSectionLabel_, "EFFECTS");
-    initSectionLabel (adsrSectionLabel_, "ADSR");
+    initSectionLabel (adsrSectionLabel_, "ENVELOPE");
     initSectionLabel (lofiSectionLabel_, "LO-FI");
 
-    // === Core ===
-    pitchLKnob_.init ("pitchL", "Pitch L", apvts, this);
-    pitchRKnob_.init ("pitchR", "Pitch R", apvts, this);
+    // === Transpose: 8 program knobs ===
+    const char* pitchIds[4][2] = {
+        {"prog1PitchA", "prog1PitchB"}, {"prog2PitchA", "prog2PitchB"},
+        {"prog3PitchA", "prog3PitchB"}, {"prog4PitchA", "prog4PitchB"}
+    };
+    const char* pitchLabels[4][2] = {
+        {"1A", "1B"}, {"2A", "2B"}, {"3A", "3B"}, {"4A", "4B"}
+    };
+    for (int prog = 0; prog < 4; ++prog)
+        for (int v = 0; v < 2; ++v)
+            progKnobs_[prog][v].init (pitchIds[prog][v], pitchLabels[prog][v], apvts, this);
+
+    // Program buttons
+    for (int i = 0; i < 4; ++i)
+    {
+        addAndMakeVisible (progButtons_[i]);
+        progButtons_[i].onClick = [this, i] { activeProgramBox_.setSelectedItemIndex (i); };
+    }
+
+    // Hidden ComboBox for APVTS attachment
+    activeProgramBox_.addItemList ({"1", "2", "3", "4"}, 1);
+    activeProgramBox_.setVisible (false);
+    addChildComponent (activeProgramBox_);
+    activeProgramAttach_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "activeProgram", activeProgramBox_);
+
     grainKnob_.init ("grain", "Grain", apvts, this);
     portamentoKnob_.init ("portamento", "Porta", apvts, this);
+
+    addAndMakeVisible (vintageCharButton_);
+    vintageCharAttach_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "vintageChar", vintageCharButton_);
+
+    // === Delay ===
     stretchKnob_.init ("stretch", "Stretch", apvts, this);
     delayKnob_.init ("delay", "Delay", apvts, this);
     feedbackKnob_.init ("feedback", "Fdbk", apvts, this);
     mixKnob_.init ("mix", "Mix", apvts, this);
 
-    addAndMakeVisible (pitchLinkButton_);
-    pitchLinkAttach_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "pitchLink", pitchLinkButton_);
-
     // === Sequencer ===
-    seqStep1Knob_.init ("seqStep1", "S1", apvts, this);
-    seqStep2Knob_.init ("seqStep2", "S2", apvts, this);
-    seqStep3Knob_.init ("seqStep3", "S3", apvts, this);
-    seqStep4Knob_.init ("seqStep4", "S4", apvts, this);
     seqRateKnob_.init ("seqRate", "Rate", apvts, this);
 
     addAndMakeVisible (seqEnabledButton_);
@@ -150,8 +200,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (monoModeBox_);
     monoModeAttach_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "monoMode", monoModeBox_);
 
-    setSize (620, 720);
-    startTimerHz (15); // Update step LED at 15fps
+    setSize (620, 680);
+    startTimerHz (15);
 }
 
 PluginEditor::~PluginEditor()
@@ -161,11 +211,14 @@ PluginEditor::~PluginEditor()
 
 void PluginEditor::timerCallback()
 {
-    int step = processorRef.getCurrentSeqStep();
-    if (step != lastSeqStep_)
+    int activeProg = processorRef.getActiveProgram();
+    if (activeProg != lastActiveProgram_)
     {
-        lastSeqStep_ = step;
-        repaint(); // Trigger LED repaint
+        lastActiveProgram_ = activeProg;
+        for (int i = 0; i < 4; ++i)
+            progButtons_[i].setColour (juce::TextButton::buttonColourId,
+                i == activeProg ? juce::Colour (0xffe94560) : juce::Colour (0xff222244));
+        repaint();
     }
 }
 
@@ -187,28 +240,18 @@ void PluginEditor::paint (juce::Graphics& g)
         g.drawHorizontalLine (y, 10.0f, static_cast<float> (getWidth() - 10));
     };
     drawDivider (38);
-    drawDivider (200);
-    drawDivider (340);
+    drawDivider (210);
+    drawDivider (300);
+    drawDivider (370);
     drawDivider (480);
-    drawDivider (590);
-    drawDivider (660);
-
-    // Sequencer step LEDs
-    int seqY = 210;
-    for (int s = 0; s < 4; ++s)
-    {
-        int ledX = 22 + s * 62;
-        g.setColour (s == lastSeqStep_ ? juce::Colour (0xffe94560) : juce::Colour (0xff333344));
-        g.fillEllipse (static_cast<float> (ledX), static_cast<float> (seqY), 8.0f, 8.0f);
-    }
+    drawDivider (560);
+    drawDivider (630);
 }
 
 void PluginEditor::resized()
 {
     const int knobW = 62;
     const int knobH = 62;
-    const int labelH = 14;
-    const int row1Y = 42;
     const int startX = 10;
 
     auto placeKnob = [] (KnobWithLabel& k, int x, int y, int w = 62, int h = 62) {
@@ -217,43 +260,53 @@ void PluginEditor::resized()
     };
 
     // === Section Labels ===
-    coreSectionLabel_.setBounds (startX, row1Y, 60, 16);
-    seqSectionLabel_.setBounds (startX, 204, 90, 16);
-    fxSectionLabel_.setBounds (startX, 344, 70, 16);
-    adsrSectionLabel_.setBounds (startX, 484, 60, 16);
-    lofiSectionLabel_.setBounds (startX, 594, 60, 16);
+    transposeSectionLabel_.setBounds (startX, 42, 90, 16);
+    delaySectionLabel_.setBounds (startX, 214, 60, 16);
+    seqSectionLabel_.setBounds (startX, 304, 90, 16);
+    fxSectionLabel_.setBounds (startX, 374, 70, 16);
+    adsrSectionLabel_.setBounds (startX, 484, 80, 16);
+    lofiSectionLabel_.setBounds (startX, 564, 60, 16);
 
-    // === Core Section (row1Y + 18 to ~200) ===
-    int coreY = row1Y + 18;
-    placeKnob (pitchLKnob_, startX, coreY);
-    placeKnob (pitchRKnob_, startX + knobW, coreY);
-    pitchLinkButton_.setBounds (startX + knobW * 2, coreY + 20, 50, 20);
-    placeKnob (grainKnob_, startX + knobW * 2 + 52, coreY);
-    placeKnob (portamentoKnob_, startX + knobW * 3 + 52, coreY);
+    // === Transpose Section (38 to ~210) ===
+    // 4 program columns, each with Voice A knob (top) + Voice B knob (bottom) + button
+    int transY = 60;
+    int progColW = 72;  // width per program column
+    int progKnobSize = 56;
 
-    int coreRow2Y = coreY + knobH + labelH + 4;
-    placeKnob (stretchKnob_, startX, coreRow2Y);
-    placeKnob (delayKnob_, startX + knobW, coreRow2Y);
-    placeKnob (feedbackKnob_, startX + knobW * 2, coreRow2Y);
-    placeKnob (mixKnob_, startX + knobW * 3, coreRow2Y);
+    for (int prog = 0; prog < 4; ++prog)
+    {
+        int colX = startX + prog * progColW;
+        placeKnob (progKnobs_[prog][0], colX, transY, progKnobSize, progKnobSize);        // Voice A
+        placeKnob (progKnobs_[prog][1], colX, transY + progKnobSize + 16, progKnobSize, progKnobSize);  // Voice B
+        progButtons_[prog].setBounds (colX + 10, transY + (progKnobSize + 16) * 2 - 2, 36, 20);
+    }
 
-    // === Sequencer Section (204 to ~340) ===
-    int seqY = 222;
-    placeKnob (seqStep1Knob_, startX + 14, seqY, 56, 56);
-    placeKnob (seqStep2Knob_, startX + 14 + 62, seqY, 56, 56);
-    placeKnob (seqStep3Knob_, startX + 14 + 124, seqY, 56, 56);
-    placeKnob (seqStep4Knob_, startX + 14 + 186, seqY, 56, 56);
-    placeKnob (seqRateKnob_, startX + 14 + 260, seqY, 56, 56);
+    // Grain, Porta, Vintage to the right of program columns
+    int rightColX = startX + 4 * progColW + 10;
+    placeKnob (grainKnob_, rightColX, transY, progKnobSize, progKnobSize);
+    placeKnob (portamentoKnob_, rightColX, transY + progKnobSize + 16, progKnobSize, progKnobSize);
+    vintageCharButton_.setBounds (rightColX, transY + (progKnobSize + 16) * 2 - 2, 64, 20);
 
-    int seqBtnY = seqY + 76;
-    seqEnabledButton_.setBounds (startX, seqBtnY, 50, 20);
-    seqSyncButton_.setBounds (startX + 52, seqBtnY, 50, 20);
-    envFollowButton_.setBounds (startX + 104, seqBtnY, 50, 20);
-    seqModeBox_.setBounds (startX + 160, seqBtnY, 80, 20);
-    seqDivisionBox_.setBounds (startX + 244, seqBtnY, 70, 20);
+    // === Delay Section (210 to ~300) ===
+    int delayY = 232;
+    placeKnob (stretchKnob_, startX, delayY);
+    placeKnob (delayKnob_, startX + knobW, delayY);
+    placeKnob (feedbackKnob_, startX + knobW * 2, delayY);
+    placeKnob (mixKnob_, startX + knobW * 3, delayY);
 
-    // === Effects Section (344 to ~480) ===
-    int fxY = 362;
+    // === Sequencer Section (300 to ~370) ===
+    int seqY = 322;
+    placeKnob (seqRateKnob_, startX, seqY, 56, 56);
+
+    int seqBtnX = startX + 62;
+    seqEnabledButton_.setBounds (seqBtnX, seqY + 4, 50, 20);
+    seqSyncButton_.setBounds (seqBtnX + 50, seqY + 4, 50, 20);
+    envFollowButton_.setBounds (seqBtnX + 100, seqY + 4, 50, 20);
+    seqModeBox_.setBounds (seqBtnX, seqY + 28, 80, 20);
+    seqDivisionBox_.setBounds (seqBtnX + 84, seqY + 28, 70, 20);
+
+    // === Effects Section (370 to ~480) ===
+    int fxY = 392;
     fxSelectBox_.setBounds (startX, fxY, 90, 22);
     placeKnob (fxFreqKnob_, startX + 96, fxY - 4);
     placeKnob (fxDepthKnob_, startX + 96 + knobW, fxY - 4);
@@ -268,7 +321,7 @@ void PluginEditor::resized()
     placeKnob (distDriveKnob_, startX + 258, fxRow2Y - 4, 56, 56);
     placeKnob (distBassBoostKnob_, startX + 258 + 60, fxRow2Y - 4, 56, 56);
 
-    // === ADSR Section (484 to ~590) ===
+    // === ADSR Section (480 to ~560) ===
     int adsrY = 502;
     adsrEnabledButton_.setBounds (startX, adsrY, 56, 20);
     placeKnob (adsrAttackKnob_, startX + 58, adsrY - 4, 56, 56);
@@ -281,8 +334,8 @@ void PluginEditor::resized()
     adsrRoutingBox_.setBounds (startX + 74, adsrBtnY, 80, 20);
     adsrInvertButton_.setBounds (startX + 158, adsrBtnY, 50, 20);
 
-    // === Lo-Fi Section (594 to ~660) ===
-    int lofiY = 610;
+    // === Lo-Fi Section (560 to ~630) ===
+    int lofiY = 578;
     placeKnob (bitDepthKnob_, startX, lofiY, 56, 56);
     placeKnob (srDivKnob_, startX + 60, lofiY, 56, 56);
     placeKnob (lpfCutoffKnob_, startX + 120, lofiY, 56, 56);

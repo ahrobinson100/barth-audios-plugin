@@ -168,5 +168,8 @@ include(Tests)
 # A separate target for Benchmarks (keeps the Tests target fast)
 include(Benchmarks)
 
+# Standalone CLI demo renderer (no JUCE dependency)
+include(RenderDemo)
+
 # Output some config for CI (like our PRODUCT_NAME)
 include(GitHubENV)

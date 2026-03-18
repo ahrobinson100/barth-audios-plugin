@@ -11,15 +11,15 @@ public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
 
-    void setStepPitch (int step, float semitones); // 0-3
     void setMode (Mode mode);
     void setRateHz (float hz);             // Free-run speed
     void setHostSync (bool enabled);
     void setDivision (float noteFraction); // 0.25 = 1/4 note
     void setEnabled (bool enabled);
 
-    // Call per-sample in processBlock. Returns pitch offset in semitones.
-    float processSample (double bpm, double ppqPosition, bool isPlaying);
+    // Call per-sample in processBlock. Advances timing only.
+    // Use getCurrentStep() after calling to read the active program.
+    void processSample (double bpm, double ppqPosition, bool isPlaying);
 
     // Trigger next step externally (envelope follower)
     void triggerNextStep();
@@ -30,7 +30,6 @@ public:
 private:
     void advanceStep();
 
-    std::array<float, 4> stepPitch_ = { 0.0f, 0.0f, 0.0f, 0.0f };
     Mode mode_ = Mode::Forward;
     std::atomic<int> currentStep_{ 0 };
     int direction_ = 1; // For ping-pong

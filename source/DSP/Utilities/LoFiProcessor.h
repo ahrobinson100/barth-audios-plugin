@@ -1,6 +1,7 @@
 #pragma once
 #include "OnePoleFilter.h"
 #include <cmath>
+#include <cstdint>
 
 class LoFiProcessor
 {
@@ -48,10 +49,15 @@ public:
 
         float sample = holdSample_;
 
-        // Bit depth reduction
+        // Bit depth reduction with TPDF dither
+        // Real DACs had thermal noise that naturally dithered the quantization,
+        // converting harsh stepping artifacts into a smooth noise floor.
+        // TPDF (triangular PDF) dither: sum of two uniform random values
+        // scaled to 1 LSB — eliminates quantization distortion entirely.
         if (bitDepth_ < 16)
         {
-            sample = std::round (sample * quantScale_) * invQuantScale_;
+            float dither = (nextRandom() + nextRandom()) * invQuantScale_;
+            sample = std::round (sample * quantScale_ + dither) * invQuantScale_;
         }
 
         // Anti-alias LPF
@@ -61,6 +67,14 @@ public:
     }
 
 private:
+    // Fast LCG for dither — doesn't need to be high quality,
+    // just uncorrelated with the audio signal
+    float nextRandom()
+    {
+        rngState_ = rngState_ * 1664525u + 1013904223u;
+        return static_cast<float> (static_cast<int32_t> (rngState_)) / 4294967296.0f; // [-0.5, 0.5)
+    }
+
     double sampleRate_ = 48000.0;
     int bitDepth_ = 16;
     int srDivider_ = 1;
@@ -68,5 +82,6 @@ private:
     float invQuantScale_ = 1.0f / 65535.0f;
     float holdSample_ = 0.0f;
     int holdCounter_ = 0;
+    uint32_t rngState_ = 12345u;
     OnePoleFilter lpf_;
 };

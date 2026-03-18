@@ -52,8 +52,8 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts_; }
 
-    // For GUI: current sequencer step
-    int getCurrentSeqStep() const { return sequencer_.getCurrentStep(); }
+    // For GUI: current active program (0-3)
+    int getActiveProgram() const;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -84,7 +84,7 @@ private:
     StepSequencer sequencer_;
 
     // Smoothed parameters
-    juce::SmoothedValue<float> pitchLSmoothed_, pitchRSmoothed_;
+    juce::SmoothedValue<float> pitchASmoothed_, pitchBSmoothed_;
     juce::SmoothedValue<float> grainSmoothed_;
     juce::SmoothedValue<float> stretchSmoothed_;
     juce::SmoothedValue<float> delaySmoothed_;
@@ -101,9 +101,10 @@ private:
     int lastReportedLatency_ = 0;
 
     // Atomic parameter pointers (set in constructor)
-    std::atomic<float>* pitchLParam_ = nullptr;
-    std::atomic<float>* pitchRParam_ = nullptr;
-    std::atomic<float>* pitchLinkParam_ = nullptr;
+    std::atomic<float>* progPitchAParams_[4] = {};  // prog1-4 Voice A
+    std::atomic<float>* progPitchBParams_[4] = {};  // prog1-4 Voice B
+    std::atomic<float>* activeProgramParam_ = nullptr;
+
     std::atomic<float>* grainParam_ = nullptr;
     std::atomic<float>* portamentoParam_ = nullptr;
     std::atomic<float>* stretchParam_ = nullptr;
@@ -112,10 +113,6 @@ private:
     std::atomic<float>* mixParam_ = nullptr;
 
     std::atomic<float>* seqEnabledParam_ = nullptr;
-    std::atomic<float>* seqStep1Param_ = nullptr;
-    std::atomic<float>* seqStep2Param_ = nullptr;
-    std::atomic<float>* seqStep3Param_ = nullptr;
-    std::atomic<float>* seqStep4Param_ = nullptr;
     std::atomic<float>* seqModeParam_ = nullptr;
     std::atomic<float>* seqRateParam_ = nullptr;
     std::atomic<float>* seqSyncParam_ = nullptr;
@@ -149,6 +146,7 @@ private:
     std::atomic<float>* srDivParam_ = nullptr;
     std::atomic<float>* lpfCutoffParam_ = nullptr;
     std::atomic<float>* monoModeParam_ = nullptr;
+    std::atomic<float>* vintageCharParam_ = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
