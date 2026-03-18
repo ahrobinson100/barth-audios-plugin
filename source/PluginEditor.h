@@ -39,7 +39,9 @@ private:
 
     // === Transpose Section ===
     KnobWithLabel progKnobs_[4][2];  // [program 0-3][0=voiceA, 1=voiceB]
-    juce::TextButton progButtons_[4] { {"1"}, {"2"}, {"3"}, {"4"} };
+    juce::TextButton progButton1_ { "1" }, progButton2_ { "2" },
+                     progButton3_ { "3" }, progButton4_ { "4" };
+    juce::TextButton* progButtons_[4] = { &progButton1_, &progButton2_, &progButton3_, &progButton4_ };
     juce::ComboBox activeProgramBox_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> activeProgramAttach_;
     int lastActiveProgram_ = -1;

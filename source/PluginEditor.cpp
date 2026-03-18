@@ -108,8 +108,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     // Program buttons
     for (int i = 0; i < 4; ++i)
     {
-        addAndMakeVisible (progButtons_[i]);
-        progButtons_[i].onClick = [this, i] { activeProgramBox_.setSelectedItemIndex (i); };
+        addAndMakeVisible (*progButtons_[i]);
+        progButtons_[i]->onClick = [this, i] { activeProgramBox_.setSelectedItemIndex (i); };
     }
 
     // Hidden ComboBox for APVTS attachment
@@ -216,7 +216,7 @@ void PluginEditor::timerCallback()
     {
         lastActiveProgram_ = activeProg;
         for (int i = 0; i < 4; ++i)
-            progButtons_[i].setColour (juce::TextButton::buttonColourId,
+            progButtons_[i]->setColour (juce::TextButton::buttonColourId,
                 i == activeProg ? juce::Colour (0xffe94560) : juce::Colour (0xff222244));
         repaint();
     }
@@ -278,7 +278,7 @@ void PluginEditor::resized()
         int colX = startX + prog * progColW;
         placeKnob (progKnobs_[prog][0], colX, transY, progKnobSize, progKnobSize);        // Voice A
         placeKnob (progKnobs_[prog][1], colX, transY + progKnobSize + 16, progKnobSize, progKnobSize);  // Voice B
-        progButtons_[prog].setBounds (colX + 10, transY + (progKnobSize + 16) * 2 - 2, 36, 20);
+        progButtons_[prog]->setBounds (colX + 10, transY + (progKnobSize + 16) * 2 - 2, 36, 20);
     }
 
     // Grain, Porta, Vintage to the right of program columns
