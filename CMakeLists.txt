@@ -168,8 +168,24 @@ include(Tests)
 # A separate target for Benchmarks (keeps the Tests target fast)
 include(Benchmarks)
 
-# Standalone CLI demo renderer (no JUCE dependency)
-include(RenderDemo)
+# Standalone CLI demo renderer (no JUCE dependency, uses DSP sources + dr_wav)
+file(GLOB_RECURSE DSPSourceFiles CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/source/DSP/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/source/DSP/*.h")
+
+add_executable(RenderDemo
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_demo.cpp"
+    ${DSPSourceFiles})
+
+target_compile_features(RenderDemo PRIVATE cxx_std_20)
+
+target_include_directories(RenderDemo PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(RenderDemo PRIVATE m)
+endif()
 
 # Output some config for CI (like our PRODUCT_NAME)
 include(GitHubENV)
